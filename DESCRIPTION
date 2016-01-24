@@ -1,0 +1,10 @@
+Package: NewRelicR
+Type: Package
+Title: Interface for New Relic Application Data
+Version: 0.1
+Date: 2016-01-24
+Author: Bill Kayer
+Maintainer: Bill Kayer <bkayser@newrelic.com>
+Description: Utility functions for accessing application metric data and NRDB session details as well as executing NRQL queries.
+License: MIT
+LazyData: TRUE
