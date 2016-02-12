@@ -1,12 +1,6 @@
-library(plyr)
-library(dplyr)
-library(httr)
-library(lubridate)
-library(digest)
-
 #' Query New Relic Application Metricdata
 #'
-#' @param nr_credentials the credentials obtained from calling `newrelic_api()`
+#' @param nr_credentials the credentials obtained from calling \code{newrelic_api()}`
 #' @param app_id the application id
 #' @param duration length of time in seconds of the time window of the metric data
 #' @param end_time the end of the time window
@@ -15,20 +9,23 @@ library(digest)
 #' @param verbose show extra information about the calls
 #' @param values a character vector of metric values (calls_per_minute, average_response_time, etc)
 #' @param cache TRUE if the query results should be cached to local disk
-#'
+#' @seealso \code{newrelic_api}
 #' @return a data table with observations as timeslices and the timeslice start time, metric name, and values in the variables
+#' @description
+#' This executes a query using the underlying Metric Data REST API at api.newrelic.com.
+#' Depending on the duration and period the data may be fetched in successive batches
+#' due to the limitations on the amount of data that can be retrieved.
+#' @import dplyr httr lubridate digest
 #' @export
-#'
-#' @examples
 rpm_query <- function(nr_credentials,
-                           app_id,
-                           duration=60 * 60,
-                           end_time=Sys.time(),
-                           period=NULL,
-                           metrics='HttpDispatcher',
-                           verbose=F,
-                           values='average_response_time',
-                           cache=T) {
+                      app_id,
+                      duration=60 * 60,
+                      end_time=Sys.time(),
+                      period=NULL,
+                      metrics='HttpDispatcher',
+                      verbose=F,
+                      values='average_response_time',
+                      cache=T) {
 
     metrics <- as.list(metrics)
     names(metrics) <- rep('names[]', length(metrics))
@@ -50,8 +47,7 @@ rpm_query <- function(nr_credentials,
                           period=period,
                           raw=TRUE))
 
-    # url <- 'http://requestb.in/1hrgi3v1'
-    url <- paste("https://staging-api.newrelic.com/v2/applications/",
+    url <- paste("https://api.newrelic.com/v2/applications/",
                  app_id,"/metrics/data.json",
                  sep = '')
 

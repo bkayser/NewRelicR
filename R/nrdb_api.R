@@ -1,9 +1,13 @@
-library(httr)
-library(plyr)
-library(dplyr)
-library('data.table')
-
-# Invoke arbitrary NRQL query and return a data frame or vector
+#' NRDB Query
+#'
+#' @param nr_credentials the credentials object created with \code{newrelic_api()}
+#' @param nrql_query the NRQL query to execute
+#'
+#' @return a data frame with the results
+#' @import httr dplyr data.table
+#' @export
+#'
+#' @examples
 nrdb_query <- function(nr_credentials, nrql_query) {
     message(paste("Query:", nrql_query))
     response <- GET(paste("https://insights-api.newrelic.com/v1/accounts/",
@@ -33,38 +37,68 @@ nrdb_query <- function(nr_credentials, nrql_query) {
     }
 }
 
-nrdb_top_session_ids <- function(nr_credentials, app_id, from=10, to=6, size=50) {
-    session_ids <- vector('character')
-    # Get the users with their pages:
-    df <- nrdb_query(nr_credentials,
-                     paste('select count(*) from PageView ',
-                           'where appId =', app_id,
-                           'since', from, 'hours ago until',
-                           to, 'hours ago facet session',
-                           'limit', size))
-    return(df$name)
-}
-
-nrdb_real_session_ids <- function(nr_credentials, app_id, size=50, hours_ago=24) {
-    session_ids <- vector('character')
-    until_minutes_ago <- hours_ago * 60
-    while (size > length(session_ids)) {
-        limit <- min(c(size, 60))
-        v <- nrdb_query(nr_credentials,
-                        paste('select uniques(name) from PageView ',
-                              'where appId =', app_id,
-                              'since', until_minutes_ago + 30, "minutes ago",
-                              'until', until_minutes_ago, "minutes ago",
-                              'facet session',
-                              'limit', limit))
-        session_ids <- unique(append(session_ids, as.character(v$name)))
-        until_minutes_ago <- until_minutes_ago + 30
+#' Get User Session IDs
+#'
+#' @param nr_credentials the credentials with the Insights API key.
+#' @param app_id the application id; you can find the id for your application in the RPM application
+#' by using the ID in the URL when viewing the application.
+#' @param from number of hours into the past to begin the hunt for sessions
+#' @param to number of hours into the past to end the hunt for sessions.  The default is six because
+#' if you fetch sessions more recent than that they may still be open and therefore incomplete.
+#' @param size the maximum number of session ids to fetch
+#' @param diverse a boolean indicating that the session ids returned will be prioritized according to
+#' how many distinct pages were accessed during the session. This is important if you have sessions from
+#' robots or monitors that you want to ignore.
+#'
+#' @return a character vector of session ids
+#' @export
+#'
+nrdb_session_ids <- function(nr_credentials, app_id, from=10, to=6, size=50, diverse=T) {
+    if (diverse) {
+        # Get the users with their pages:
+        df <- nrdb_query(nr_credentials,
+                         paste('select count(*) from PageView ',
+                               'where appId =', app_id,
+                               'since', from, 'hours ago until',
+                               to, 'hours ago facet session',
+                               'limit', size))
+        return(df$name)
+    } else {
+        session_ids <- vector('character')
+        since_minutes_ago <- from * 60
+        until_minutes_ago <- since_minutes_ago + 30
+        while (size > length(session_ids) & (since_minutes_ago > (to * 60))) {
+            limit <- min(c(size, 60))
+            v <- nrdb_query(nr_credentials,
+                            paste('select uniques(name) from PageView ',
+                                  'where appId =', app_id,
+                                  'since', since_minutes_ago, "minutes ago",
+                                  'until', until_minutes_ago, "minutes ago",
+                                  'facet session',
+                                  'limit', limit))
+            session_ids <- unique(append(session_ids, as.character(v$name)))
+            until_minutes_ago <- until_minutes_ago + 30
+        }
+        return(session_ids)
     }
-    session_ids
 }
 
+#' Get the Page Views for a list of session Ids
+#'
+#' @param nr_credentials the credentials with the Insights API key.
+#' @param session_ids the list of session ids obtained using \code{\link{nrdb_session_ids}}
+#' @param limit the limit on the number of PageViews in a session to this number; if there are
+#' more than this number of pages the session is skipped.  Default limit is 750 and the max limit
+#' is 1000.
+#'
+#' @return
+#' @export
+#'
+#' @examples
 nrdb_sessions <- function(nr_credentials, session_ids, limit=750) {
     sessions <- list()
+
+    if (limit > 1000) stop("Limit may not be greater than 1000")
 
     for(session in session_ids) {
         events <- nrdb_query(nr_credentials,
