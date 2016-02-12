@@ -2,16 +2,19 @@
 % Please edit documentation in R/metricdata_api.R
 \name{rpm_query}
 \alias{rpm_query}
-\title{Query New Relic Application Metricdata}
+\title{Query New Relic Application Metricdata.}
 \usage{
-rpm_query(nr_credentials, app_id, duration = 60 * 60, end_time = Sys.time(),
-  period = NULL, metrics = "HttpDispatcher", verbose = F,
-  values = "average_response_time", cache = T)
+rpm_query(account_id, api_key, app_id, duration = 60 * 60,
+  end_time = Sys.time(), period = NULL, metrics = "HttpDispatcher",
+  verbose = F, values = "average_response_time", cache = T,
+  host = "api.newrelic.com")
 }
 \arguments{
-\item{nr_credentials}{the credentials obtained from calling \code{newrelic_api()}`}
+\item{account_id}{your New Relic account ID}
 
-\item{app_id}{the application id}
+\item{api_key}{your New Relic APM REST API key}
+
+\item{app_id}{the application id. Use a value of -1 to generate a fake response for tests.}
 
 \item{duration}{length of time in seconds of the time window of the metric data}
 
@@ -25,17 +28,36 @@ rpm_query(nr_credentials, app_id, duration = 60 * 60, end_time = Sys.time(),
 
 \item{values}{a character vector of metric values (calls_per_minute, average_response_time, etc)}
 
-\item{cache}{TRUE if the query results should be cached to local disk}
+\item{cache}{TRUE if the query results should be cached to local disk and reused
+when subsequent calls have matching parameters}
+
+\item{host}{use to proxy requests through an intermediate host you can override the default host
+of \code{api.newrelic.com}.}
 }
 \value{
 a data table with observations as timeslices and the timeslice start time, metric name, and values in the variables
 }
 \description{
-This executes a query using the underlying Metric Data REST API at api.newrelic.com.
+This function is a facade on the New Relic public REST API for getting application
+metric data.  You can use it to get any value of any metric over a
+given time range.  The results are always returned as a time series of
+numeric values.
+}
+\details{
+This executes HTTP queries using the underlying Metric Data REST API at api.newrelic.com.
 Depending on the duration and period the data may be fetched in successive batches
 due to the limitations on the amount of data that can be retrieved.
 }
+\examples{
+    rpm_query(account_id=12345, api_key='your_api_license_key_here',
+              app_id=-1, duration=3600, period=300, end_time=as.POSIXct('2016-01-28 09:15:00'),
+              metrics='HttpDispatcher', values='calls_per_minute')
+}
 \seealso{
-\code{newrelic_api}
+\code{\link{newrelic_api}}
+
+\href{https://docs.newrelic.com/docs/apis/rest-api-v2/requirements/new-relic-rest-api-v2-getting-started}{New Relic REST API Documentation}
+
+\href{https://docs.newrelic.com/docs/apis/rest-api-v2/requirements/api-keys}{How to get API keys}
 }
 

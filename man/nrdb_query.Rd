@@ -2,12 +2,14 @@
 % Please edit documentation in R/nrdb_api.R
 \name{nrdb_query}
 \alias{nrdb_query}
-\title{NRDB Query}
+\title{Execute NRQL queries on NRDB (Insights).}
 \usage{
-nrdb_query(nr_credentials, nrql_query)
+nrdb_query(account_id, api_key, nrql_query)
 }
 \arguments{
-\item{nr_credentials}{the credentials object created with \code{newrelic_api()}}
+\item{account_id}{your New Relic account ID}
+
+\item{api_key}{your New Relic NRDB (Insights) API key}
 
 \item{nrql_query}{the NRQL query to execute}
 }
@@ -15,6 +17,18 @@ nrdb_query(nr_credentials, nrql_query)
 a data frame with the results
 }
 \description{
-NRDB Query
+This function is a facade on the NRDB REST API.  It allows you to execute queries
+and analyze the results in a data frame.
+}
+\examples{
+    nrdb_query(account_id=-1, api_key='your_nrdb_api_license_key_here',
+              nrql_query="select count(*) from PageView facet name")
+}
+\seealso{
+\href{https://docs.newrelic.com/docs/insights/new-relic-insights/adding-querying-data/querying-your-data-remotely}{New Relic NRQL REST API}
+
+\href{https://docs.newrelic.com/docs/insights/new-relic-insights/using-new-relic-query-language/using-nrql}{NRQL Query Reference}
+
+\href{https://docs.newrelic.com/docs/insights/new-relic-insights/adding-querying-data/querying-your-data-remotely#register}{How to get a NRDB API key}
 }
 

@@ -2,13 +2,15 @@
 % Please edit documentation in R/nrdb_api.R
 \name{nrdb_session_ids}
 \alias{nrdb_session_ids}
-\title{Get User Session IDs}
+\title{Get User Session IDs.}
 \usage{
-nrdb_session_ids(nr_credentials, app_id, from = 10, to = 6, size = 50,
-  diverse = T)
+nrdb_session_ids(account_id, api_key, app_id, from = 10, to = 6,
+  size = 50, diverse = T)
 }
 \arguments{
-\item{nr_credentials}{the credentials with the Insights API key.}
+\item{account_id}{your New Relic account ID}
+
+\item{api_key}{your New Relic NRDB (Insights) API key}
 
 \item{app_id}{the application id; you can find the id for your application in the RPM application
 by using the ID in the URL when viewing the application.}
@@ -28,6 +30,8 @@ robots or monitors that you want to ignore.}
 a character vector of session ids
 }
 \description{
-Get User Session IDs
+This looks in the given time range for the top sessions based on either
+the size of the session (diverse=F) or the number of distinct pages called
+during the session (diverse=T).
 }
 

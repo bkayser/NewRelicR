@@ -2,12 +2,14 @@
 % Please edit documentation in R/nrdb_api.R
 \name{nrdb_sessions}
 \alias{nrdb_sessions}
-\title{Get the Page Views for a list of session Ids}
+\title{Get the Page Views for a list of session Ids.}
 \usage{
-nrdb_sessions(nr_credentials, session_ids, limit = 750)
+nrdb_sessions(account_id, api_key, session_ids, limit = 750)
 }
 \arguments{
-\item{nr_credentials}{the credentials with the Insights API key.}
+\item{account_id}{your New Relic account ID}
+
+\item{api_key}{your New Relic NRDB (Insights) API key}
 
 \item{session_ids}{the list of session ids obtained using \code{\link{nrdb_session_ids}}}
 
@@ -15,7 +17,11 @@ nrdb_sessions(nr_credentials, session_ids, limit = 750)
 more than this number of pages the session is skipped.  Default limit is 750 and the max limit
 is 1000.}
 }
+\value{
+list of data frames for each session that contain a page view in each row
+  and the union of all attributes as columns
+}
 \description{
-Get the Page Views for a list of session Ids
+Get the Page Views for a list of session Ids.
 }
 

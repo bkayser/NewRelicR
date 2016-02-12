@@ -1,45 +1,64 @@
-#' NRDB Query
+#' Execute NRQL queries on NRDB (Insights).
 #'
-#' @param nr_credentials the credentials object created with \code{newrelic_api()}
+#' This function is a facade on the NRDB REST API.  It allows you to execute queries
+#' and analyze the results in a data frame.
+#'
+#' @param account_id your New Relic account ID
+#' @param api_key your New Relic NRDB (Insights) API key
 #' @param nrql_query the NRQL query to execute
 #'
 #' @return a data frame with the results
-#' @import httr dplyr data.table
+#' @seealso \href{https://docs.newrelic.com/docs/insights/new-relic-insights/adding-querying-data/querying-your-data-remotely}{New Relic NRQL REST API}
+#' @seealso \href{https://docs.newrelic.com/docs/insights/new-relic-insights/using-new-relic-query-language/using-nrql}{NRQL Query Reference}
+#' @seealso \href{https://docs.newrelic.com/docs/insights/new-relic-insights/adding-querying-data/querying-your-data-remotely#register}{How to get a NRDB API key}
 #' @export
 #'
 #' @examples
-nrdb_query <- function(nr_credentials, nrql_query) {
+#'     nrdb_query(account_id=-1, api_key='your_nrdb_api_license_key_here',
+#'               nrql_query="select count(*) from PageView facet name")
+nrdb_query <- function(account_id, api_key, nrql_query) {
     message(paste("Query:", nrql_query))
-    response <- GET(paste("https://insights-api.newrelic.com/v1/accounts/",
-                          nr_credentials$account_id, "/query", sep = ''),
-                    query=list(nrql=nrql_query),
-                    as='text',
-                    accept("application/json"),
-                    add_headers('X-Query-Key'=nr_credentials$nrdb_api_key))
-    result <- content(response)
-    if (!is.null(result$error)) {
+    if (account_id > 0) {
+        url <- paste("https://insights-api.newrelic.com/v1/accounts/",
+                     account_id, "/query", sep = '')
+    } else {
+        url <- 'http://mockbin.org/bin/b1db81d0-a699-44ae-87e0-ed9092d1e017'
+    }
+    response <- httr::GET(url,
+                          query=list(nrql=nrql_query),
+                          as='text',
+                          httr::accept("application/json"),
+                          httr::add_headers('X-Query-Key'=api_key))
+    result <- httr::content(response, type='application/json')
+
+        if (!is.null(result$error)) {
         stop("Error in response: ", result$error)
     }
     if (!is.null(result$facets)) {
-        tbl_df(ldply(result$facets, as.data.frame))
+        dplyr::tbl_df(plyr::ldply(result$facets, as.data.frame))
     } else if (!is.null(result$timeSeries)) {
-        times <- rbindlist(result$timeSeries)
-        timeseries <- rbindlist(times$results)
+        times <- data.table::rbindlist(result$timeSeries)
+        timeseries <- data.table::rbindlist(times$results)
         timeseries$beginTime <- nrdb_timestamp(times$beginTimeSeconds * 1000)
         timeseries$endTime <- nrdb_timestamp(times$endTimeSeconds * 1000)
-        tbl_df(timeseries)
+        dplyr::tbl_df(timeseries)
     } else if (names(result$results[[1]])[1] == 'events') {
-        tbl_df(ldply(result$results[[1]]$events, as.data.frame))
+        dplyr::tbl_df(ldply(result$results[[1]]$events, as.data.frame))
     } else if (!is.null(result$results)) {
-        tbl_df(return(unpack(result$results[[1]])))
+        dplyr::tbl_df(return(unpack(result$results[[1]])))
     } else {
         stop("Unsupported result type; only facets, timeseries and events supported now.")
     }
 }
 
-#' Get User Session IDs
+#' Get User Session IDs.
 #'
-#' @param nr_credentials the credentials with the Insights API key.
+#' This looks in the given time range for the top sessions based on either
+#' the size of the session (diverse=F) or the number of distinct pages called
+#' during the session (diverse=T).
+#'
+#' @param account_id your New Relic account ID
+#' @param api_key your New Relic NRDB (Insights) API key
 #' @param app_id the application id; you can find the id for your application in the RPM application
 #' by using the ID in the URL when viewing the application.
 #' @param from number of hours into the past to begin the hunt for sessions
@@ -53,10 +72,10 @@ nrdb_query <- function(nr_credentials, nrql_query) {
 #' @return a character vector of session ids
 #' @export
 #'
-nrdb_session_ids <- function(nr_credentials, app_id, from=10, to=6, size=50, diverse=T) {
+nrdb_session_ids <- function(account_id, api_key, app_id, from=10, to=6, size=50, diverse=T) {
     if (diverse) {
         # Get the users with their pages:
-        df <- nrdb_query(nr_credentials,
+        df <- nrdb_query(account_id, api_key,
                          paste('select count(*) from PageView ',
                                'where appId =', app_id,
                                'since', from, 'hours ago until',
@@ -69,7 +88,7 @@ nrdb_session_ids <- function(nr_credentials, app_id, from=10, to=6, size=50, div
         until_minutes_ago <- since_minutes_ago + 30
         while (size > length(session_ids) & (since_minutes_ago > (to * 60))) {
             limit <- min(c(size, 60))
-            v <- nrdb_query(nr_credentials,
+            v <- nrdb_query(account_id, api_key,
                             paste('select uniques(name) from PageView ',
                                   'where appId =', app_id,
                                   'since', since_minutes_ago, "minutes ago",
@@ -83,25 +102,26 @@ nrdb_session_ids <- function(nr_credentials, app_id, from=10, to=6, size=50, div
     }
 }
 
-#' Get the Page Views for a list of session Ids
+#' Get the Page Views for a list of session Ids.
 #'
-#' @param nr_credentials the credentials with the Insights API key.
+#' @param account_id your New Relic account ID
+#' @param api_key your New Relic NRDB (Insights) API key
 #' @param session_ids the list of session ids obtained using \code{\link{nrdb_session_ids}}
 #' @param limit the limit on the number of PageViews in a session to this number; if there are
 #' more than this number of pages the session is skipped.  Default limit is 750 and the max limit
 #' is 1000.
 #'
-#' @return
+#' @return list of data frames for each session that contain a page view in each row
+#'   and the union of all attributes as columns
 #' @export
 #'
-#' @examples
-nrdb_sessions <- function(nr_credentials, session_ids, limit=750) {
+nrdb_sessions <- function(account_id, api_key, session_ids, limit=750) {
     sessions <- list()
 
     if (limit > 1000) stop("Limit may not be greater than 1000")
 
     for(session in session_ids) {
-        events <- nrdb_query(nr_credentials,
+        events <- nrdb_query(account_id, api_key,
                              paste("select * from PageView",
                                    paste("where session='",session,"'",sep=''),
                                    'since 36 hours ago',
@@ -116,6 +136,25 @@ nrdb_sessions <- function(nr_credentials, session_ids, limit=750) {
     sessions
 }
 
+#' Get the top transactions.
+#'
+#' This will return a list of transaction names and their call count for the last 30 minutes
+#' ordered according to call count.
+#'
+#' @param account_id your New Relic account ID
+#' @param api_key your New Relic NRDB (Insights) API key
+#' @param app_id the application with the transactions
+#' @param limit to limit the number of transactions returned
+#' @param event_type the event table to use, either \code{PageView} or (default) \code{Transaction}
+#'
+#' @return a data frame with two variables, \code{name} and \code{count}
+#' @export
+get_top_transactions <- function(api_key, app_id, limit=10, event_type='Transaction') {
+    nrdb_query(account_id, api_key, paste("select count(*) from ', event_type, ' where appId=", app_id, " facet name limit ",limit, sep=''),
+         verbose=F)
+}
+
+
 ## Utility functions
 
 unpack <- function(l) {
@@ -128,11 +167,11 @@ nrdb_timestamp <- function(t) {
     as.POSIXct(t/1000, origin="1970-01-01")
 }
 postprocess <- function(events) {
-    v <- mutate(events,
-               timestamp=nrdb_timestamp(timestamp),
-               name=gsub('^(WebTransaction/(JSP/|Servlet/)|Controller/)', '', name)) %>%
+    v <- dplyr::mutate(events,
+                       timestamp=nrdb_timestamp(timestamp),
+                       name=gsub('^(WebTransaction/(JSP/|Servlet/)|Controller/)', '', name)) %>%
         # Sort by timestamp
-        arrange(timestamp)
+        dplyr::arrange(timestamp)
     if (nrow(v) > 1) {
         for (i in 1:(nrow(v)-1)) {
             s <- v[i+1,'timestamp'] - v[i,'timestamp']
