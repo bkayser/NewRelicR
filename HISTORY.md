@@ -8,3 +8,8 @@
 * Fixed many bugs
 * Added some examples using pastebin
 * Improved docs
+
+## Version 0.0.0.9002
+
+* Removed dependency on plyr
+* Removed `%>%` usage

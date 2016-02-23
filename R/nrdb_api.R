@@ -24,9 +24,9 @@ nrdb_query <- function(account_id, api_key, nrql_query) {
     } else {
         url <- 'http://mockbin.org/bin/b1db81d0-a699-44ae-87e0-ed9092d1e017'
     }
-    response <- httr::GET(url,
-                          query=list(nrql=nrql_query),
-                          as='text',
+    response <- httr::POST(url,
+                          body=list(nrql=nrql_query),
+                          encode='json',
                           httr::accept("application/json"),
                           httr::add_headers('X-Query-Key'=api_key))
     result <- httr::content(response, type='application/json')
@@ -35,7 +35,7 @@ nrdb_query <- function(account_id, api_key, nrql_query) {
         stop("Error in response: ", result$error)
     }
     if (!is.null(result$facets)) {
-        dplyr::tbl_df(plyr::ldply(result$facets, as.data.frame))
+        dplyr::tbl_df(dplyr::bind_rows(lapply(result$facets, as.data.frame, stringsAsFactors=F)))
     } else if (!is.null(result$timeSeries)) {
         times <- data.table::rbindlist(result$timeSeries)
         timeseries <- data.table::rbindlist(times$results)
@@ -43,7 +43,8 @@ nrdb_query <- function(account_id, api_key, nrql_query) {
         timeseries$endTime <- nrdb_timestamp(times$endTimeSeconds * 1000)
         dplyr::tbl_df(timeseries)
     } else if (names(result$results[[1]])[1] == 'events') {
-        dplyr::tbl_df(ldply(result$results[[1]]$events, as.data.frame))
+        df <- dplyr::bind_rows(lapply(result$results[[1]]$events, as.data.frame, stringsAsFactors=F))
+        dplyr::tbl_df(df)
     } else if (!is.null(result$results)) {
         dplyr::tbl_df(return(unpack(result$results[[1]])))
     } else {
@@ -169,9 +170,8 @@ nrdb_timestamp <- function(t) {
 postprocess <- function(events) {
     v <- dplyr::mutate(events,
                        timestamp=nrdb_timestamp(timestamp),
-                       name=gsub('^(WebTransaction/(JSP/|Servlet/)|Controller/)', '', name)) %>%
-        # Sort by timestamp
-        dplyr::arrange(timestamp)
+                       name=gsub('^(WebTransaction/(JSP/|Servlet/)|Controller/)', '', name))
+    v <- dplyr::arrange(v, timestamp)
     if (nrow(v) > 1) {
         for (i in 1:(nrow(v)-1)) {
             s <- v[i+1,'timestamp'] - v[i,'timestamp']
