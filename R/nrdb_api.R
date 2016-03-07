@@ -37,10 +37,9 @@ nrdb_query <- function(account_id, api_key, nrql_query) {
     if (!is.null(result$facets)) {
         dplyr::tbl_df(dplyr::bind_rows(lapply(result$facets, as.data.frame, stringsAsFactors=F)))
     } else if (!is.null(result$timeSeries)) {
-        times <- data.table::rbindlist(result$timeSeries)
-        timeseries <- data.table::rbindlist(times$results)
-        timeseries$beginTime <- nrdb_timestamp(times$beginTimeSeconds * 1000)
-        timeseries$endTime <- nrdb_timestamp(times$endTimeSeconds * 1000)
+        timeseries <- as.data.frame(t(sapply(result$timeSeries, unlist)))
+        # Strip leading 'results.' part
+        names(timeseries) <- stri_replace(names(timeseries), "", regex='^results\\.')
         dplyr::tbl_df(timeseries)
     } else if (names(result$results[[1]])[1] == 'events') {
         df <- dplyr::bind_rows(lapply(result$results[[1]]$events, as.data.frame, stringsAsFactors=F))

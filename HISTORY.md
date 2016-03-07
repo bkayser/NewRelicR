@@ -13,3 +13,7 @@
 
 * Removed dependency on plyr
 * Removed `%>%` usage
+
+## Version 0.0.0.9003
+
+* Support for multi column timeseries queries, like `select average(duration), count(*) from Transaction timeseries AUTO`
