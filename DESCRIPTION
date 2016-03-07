@@ -19,4 +19,5 @@ Imports:
     httr,
     lubridate,
     digest,
-    data.table
+    data.table,
+    stringi

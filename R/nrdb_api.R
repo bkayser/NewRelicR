@@ -39,7 +39,7 @@ nrdb_query <- function(account_id, api_key, nrql_query) {
     } else if (!is.null(result$timeSeries)) {
         timeseries <- as.data.frame(t(sapply(result$timeSeries, unlist)))
         # Strip leading 'results.' part
-        names(timeseries) <- stri_replace(names(timeseries), "", regex='^results\\.')
+        names(timeseries) <- stringi::stri_replace(names(timeseries), "", regex='^results\\.')
         dplyr::tbl_df(timeseries)
     } else if (names(result$results[[1]])[1] == 'events') {
         df <- dplyr::bind_rows(lapply(result$results[[1]]$events, as.data.frame, stringsAsFactors=F))
