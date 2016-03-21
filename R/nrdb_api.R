@@ -42,8 +42,13 @@ nrdb_query <- function(account_id, api_key, nrql_query) {
         names(timeseries) <- stringi::stri_replace(names(timeseries), "", regex='^results\\.')
         dplyr::tbl_df(timeseries)
     } else if (names(result$results[[1]])[1] == 'events') {
-        df <- dplyr::bind_rows(lapply(result$results[[1]]$events, as.data.frame, stringsAsFactors=F))
-        dplyr::tbl_df(df)
+        rows <- lapply(result$results[[1]]$events, as.data.frame, stringsAsFactors=F)
+        if (length(rows) > 0) {
+            df <- plyr::rbind.fill(rows)
+            dplyr::tbl_df(df)
+        } else {
+            return(NULL)
+        }
     } else if (!is.null(result$results)) {
         dplyr::tbl_df(return(unpack(result$results[[1]])))
     } else {
@@ -149,9 +154,61 @@ nrdb_sessions <- function(account_id, api_key, session_ids, limit=750) {
 #'
 #' @return a data frame with two variables, \code{name} and \code{count}
 #' @export
-get_top_transactions <- function(api_key, app_id, limit=10, event_type='Transaction') {
+get_top_transactions <- function(account_id, api_key, app_id, limit=10, event_type='Transaction') {
     nrdb_query(account_id, api_key, paste("select count(*) from ', event_type, ' where appId=", app_id, " facet name limit ",limit, sep=''),
          verbose=F)
+}
+
+#' Retrieve a sample of events for an application.
+#'
+#' This returns a sample of events of event_type of the given length (limit) for the given application.
+#' The events are fetched in chunks going backwards from the end_time until there are a total of limit
+#' events.  There may be gaps in between the chunks.  You aren't guaranteed to get the complete set of
+#' contiguous events in a given time range, hence the idea that you are only getting a "sample."
+#'
+#' @param account_id your New Relic account ID
+#' @param api_key your New Relic NRDB (Insights) API key
+#' @param app_id the application with the transactions
+#' @param end_time the upper bound on the time range for getting events
+#' @param limit the number of events to retrieve
+#' @param event_type
+#'
+#' @return a dataframe with limit rows and the union of all attributes in all sampled events.
+#' @export
+#'
+sample_events <- function(account_id,
+                       api_key,
+                       app_id,
+                       end_time=Sys.time(),
+                       limit=100,
+                       event_type='Transaction') {
+    c <- nrdb_query(account_id, api_key, paste('select(count(*)) from',
+                                                        event_type,
+                                                        'where appId=',
+                                                        app_id,
+                                                        'since 30 minutes ago'))
+    rate <- c / ( 30 * 60  )
+    batch_duration_ms <- 1000 * (800 / rate)
+
+    begin_time <- end_time - lubridate::seconds(batch_duration)
+    chunks <- list()
+    count <- 0
+    until <- 1000*as.numeric(end_time)
+    while (count < limit) {
+        since <- until - batch_duration_ms
+        q <- paste('select * from',
+                   event_type,
+                   'where appId=', app_id,
+                   'since ',round(since),
+                   'until', round(until),
+                   'limit', round(min(1.1*(limit-count), 1000)))
+        chunk <- nrdb_query(account_id, api_key, q)
+        chunks[[length(chunks)+1]] <- chunk
+        count <- count + nrow(chunk)
+        until <- floor(min(chunk$timestamp)) - 1
+    }
+    df <- plyr::rbind.fill(chunks)
+    top(postprocess(df, add_think_time=F), limit)
 }
 
 
@@ -166,12 +223,12 @@ unpack <- function(l) {
 nrdb_timestamp <- function(t) {
     as.POSIXct(t/1000, origin="1970-01-01")
 }
-postprocess <- function(events) {
+postprocess <- function(events, add_think_time=T) {
     v <- dplyr::mutate(events,
                        timestamp=nrdb_timestamp(timestamp),
                        name=gsub('^(WebTransaction/(JSP/|Servlet/)|Controller/)', '', name))
     v <- dplyr::arrange(v, timestamp)
-    if (nrow(v) > 1) {
+    if (add_think_time & nrow(v) > 1) {
         for (i in 1:(nrow(v)-1)) {
             s <- v[i+1,'timestamp'] - v[i,'timestamp']
             d <- v[i, 'duration']

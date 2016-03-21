@@ -4,10 +4,12 @@
 \alias{get_top_transactions}
 \title{Get the top transactions.}
 \usage{
-get_top_transactions(api_key, app_id, limit = 10,
+get_top_transactions(account_id, api_key, app_id, limit = 10,
   event_type = "Transaction")
 }
 \arguments{
+\item{account_id}{your New Relic account ID}
+
 \item{api_key}{your New Relic NRDB (Insights) API key}
 
 \item{app_id}{the application with the transactions}
@@ -15,8 +17,6 @@ get_top_transactions(api_key, app_id, limit = 10,
 \item{limit}{to limit the number of transactions returned}
 
 \item{event_type}{the event table to use, either \code{PageView} or (default) \code{Transaction}}
-
-\item{account_id}{your New Relic account ID}
 }
 \value{
 a data frame with two variables, \code{name} and \code{count}

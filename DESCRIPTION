@@ -1,8 +1,8 @@
 Package: newrelic
 Type: Package
 Title: Interface for New Relic Application Data
-Version: 0.0.0.9003
-Date: 2016-03-06
+Version: 0.0.0.9004
+Date: 2016-03-21
 Authors@R: person('Bill', 'Kayser', email='bkayser@newrelic.com', role=c('aut', 'cre'))
 Maintainer: Bill Kayer <bkayser@newrelic.com>
 Description: Utility functions for accessing application metric data and NRDB
@@ -15,6 +15,7 @@ URL: https://github.com/bkayser/NewRelicR
 BugReports: https://github.com/bkayser/NewRelicR/issues
 RoxygenNote: 5.0.1
 Imports:
+    plyr,
     dplyr,
     httr,
     lubridate,
