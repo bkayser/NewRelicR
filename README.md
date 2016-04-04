@@ -16,7 +16,7 @@ devtools::install_github("bkayser/NewRelicR")
 Refer to the help documentation in the package for details on how to use the methods.
 
 ```r
-??NewRelicR
+??newrelic
 ```
 
 Please report any bugs or suggestions [here](https://github.com/bkayser/NewRelicR/issues).
