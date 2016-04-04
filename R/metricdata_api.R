@@ -50,19 +50,83 @@ rpm_query <- function(account_id,
     names(values) <- rep('values[]', length(values))
 
     query <- append(metrics, values)
-
+    
+    if (is.numeric(period) && !lubridate::is.period(period)) {
+        period <- lubridate::dseconds(period)
+    }
+    if (is.null(period)) {
+        fetch_size <- lubridate::dseconds(duration)
+    } else if (period >= lubridate::dhours(1)) {
+        fetch_size <- lubridate::days(7)
+    } else if (period >= lubridate::dminutes(10)) {
+        fetch_size <- lubridate::dhours(24)
+    } else if (period >= lubridate::dminutes(1)) {
+        fetch_size <- lubridate::hours(3)
+    } else {
+        stop("Period must be greater than 60 seconds: ", period)
+    }
     start_time <- end_time - duration
-    period <- max(60, period)
+    if (!is.null(period) &&
+        period < lubridate::dhours(1) && 
+        start_time < Sys.time() - lubridate::days(8)) {
+        stop("You can't have a period less than 60 minutes when getting data older than 8 days: ",
+             start_time)
+    }
+
     if (is.null(end_time)) end_time <- Sys.time()
-    from <- to_json_time(start_time)
-    to <-to_json_time(end_time)
-
+    num_chunks <- (end_time - start_time) / as.duration(fetch_size)
+    if (num_chunks > 5) message("Sending ", ceiling(num_chunks), " queries...")
+    chunk.start <- start_time
+    chunk.end <- min(end_time, chunk.start + fetch_size)
     query <- append(query,
-                    list( from=from,
-                          to=to,
-                          period=period,
+                    list( period=as.numeric(period),
                           raw=TRUE))
+    
+    key <- digest::digest(c(url, as.numeric(start_time), as.numeric(end_time), as.numeric(period)))
+    cachefile <- paste('query_cache/', key, '.RData', sep='')
+    if (cache & file.exists(cachefile)) {
+        if (!dir.exists('query_cache')) dir.create('query_cache')
+        data <- readRDS(file=cachefile)
+        if (verbose) message('read cached: ', cachefile)
+        return(data)
+    } 
+        
+    chunks <- list()
+    repeat {
+        query['from'] <- to_json_time(chunk.start)
+        query['to'] <-  to_json_time(chunk.end)
+        
+        data <- send_query(app_id,
+                           host,
+                           query,
+                           api_key,
+                           cache,
+                           verbose)
+        
+        chunks[[length(chunks)+1]] <- data
+        if (chunk.end < end_time) {
+            chunk.start <- chunk.end
+            chunk.end <- min(end_time, chunk.start + fetch_size)
+        } else {
+            break
+        }
+    }
+    data <- dplyr::bind_rows(chunks)
+    if (cache) {
+        saveRDS(data, file=cachefile)
+        if (verbose) message('write cache: ', cachefile)
+    }
+    return(data)
+}
 
+## Utility functions
+
+send_query <- function(app_id,
+                       host,
+                       query,
+                       api_key,
+                       cache,
+                       verbose) {
     if (app_id < 1) {
         url <- 'http://mockbin.org/bin/1ba023e7-d63c-4e92-a4af-bedb93e9aa98'
     } else {
@@ -70,33 +134,23 @@ rpm_query <- function(account_id,
                      app_id,"/metrics/data.json",
                      sep = '')
     }
-
-    key <- digest::digest(c(url, start_time, end_time, period, metrics))
+    
+    key <- digest::digest(c(url, unlist(unname(query))))
     cachefile <- paste('query_cache/', key, '.RData', sep='')
-    if (cache & file.exists(cachefile)) {
-        load(file=cachefile)
-    } else {
-        if (cache & !dir.exists('query_cache')) {
-            dir.create('query_cache')
-        }
-        response <- httr::GET(url,
-                        query=query,
-                        as='text',
-                        httr::config(verbose=verbose),
-                        httr::accept("application/json"),
-                        httr::add_headers('X-Api-Key'=api_key))
-        result <- httr::content(response, type='application/json')
-        if (!is.null(result$error)) {
-            stop("Error in response: ", result$error)
-        }
-        metric_data_frames <- lapply(result$metric_data$metrics, parse_metricdata)
-        data <- dplyr::bind_rows(metric_data_frames)
-        save(data, file=cachefile)
+    
+    response <- httr::GET(url,
+                          query=query,
+                          as='text',
+                          httr::config(verbose=verbose),
+                          httr::accept("application/json"),
+                          httr::add_headers('X-Api-Key'=api_key))
+    result <- httr::content(response, type='application/json')
+    if (!is.null(result$error)) {
+        stop("Error in response: ", result$error)
     }
-    return(data)
+    metric_data_frames <- lapply(result$metric_data$metrics, parse_metricdata)
+    dplyr::bind_rows(metric_data_frames)
 }
-
-## Utility functions
 
 to_json_time <- function(time) { strftime(time, '%Y-%m-%dT%H:%M:00%z') }
 from_json_time <- function(timestr) { lubridate::ymd_hms(timestr, tz='America/Los_Angeles', quiet = T)}

@@ -17,3 +17,10 @@
 ## Version 0.0.0.9003
 
 * Support for multi column timeseries queries, like `select average(duration), count(*) from Transaction timeseries AUTO`
+
+## Version 0.0.0.9006
+
+* Add batch fetching to the `rpm_query()` call.  This means it will respect the period
+  parameter and simply fetch data in chunks to get the resolution you need.
+* New method for nrdb, `sample_events()` which selects a requested number of events near a point in time
+  which may not be contiguous (hence "sample").  
