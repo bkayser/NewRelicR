@@ -50,7 +50,7 @@ rpm_query <- function(account_id,
     names(values) <- rep('values[]', length(values))
 
     query <- append(metrics, values)
-    
+
     if (is.numeric(period) && !lubridate::is.period(period)) {
         period <- lubridate::dseconds(period)
     }
@@ -67,7 +67,7 @@ rpm_query <- function(account_id,
     }
     start_time <- end_time - duration
     if (!is.null(period) &&
-        period < lubridate::dhours(1) && 
+        period < lubridate::dhours(1) &&
         start_time < Sys.time() - lubridate::days(8)) {
         stop("You can't have a period less than 60 minutes when getting data older than 8 days: ",
              start_time)
@@ -81,7 +81,7 @@ rpm_query <- function(account_id,
     query <- append(query,
                     list( period=as.numeric(period),
                           raw=TRUE))
-    
+
     key <- digest::digest(c(url, as.numeric(start_time), as.numeric(end_time), as.numeric(period)))
     cachefile <- paste('query_cache/', key, '.RData', sep='')
     if (cache & file.exists(cachefile)) {
@@ -89,20 +89,20 @@ rpm_query <- function(account_id,
         data <- readRDS(file=cachefile)
         if (verbose) message('read cached: ', cachefile)
         return(data)
-    } 
-        
+    }
+
     chunks <- list()
     repeat {
         query['from'] <- to_json_time(chunk.start)
         query['to'] <-  to_json_time(chunk.end)
-        
+
         data <- send_query(app_id,
                            host,
                            query,
                            api_key,
                            cache,
                            verbose)
-        
+
         chunks[[length(chunks)+1]] <- data
         if (chunk.end < end_time) {
             chunk.start <- chunk.end
@@ -117,6 +117,49 @@ rpm_query <- function(account_id,
         if (verbose) message('write cache: ', cachefile)
     }
     return(data)
+}
+#' Query for New Relic Applications.
+#'
+#' This function returns a list of applications in the given account.
+#'
+#' @param account_id your New Relic account ID
+#' @param api_key your New Relic APM REST API key
+#' @param verbose show extra information about the calls
+#' @param host use to proxy requests through an intermediate host you can override the default host
+#'     of \code{api.newrelic.com}.
+#' @seealso \code{\link{newrelic_api}}
+#' @return a data table with observations for each application and variables for the id, name, and throughput
+#' @export
+rpm_applications <- function(account_id,
+                         api_key,
+                         host='api.newrelic.com',
+                         verbose=F) {
+    page <- 1
+    df <- data.frame()
+    repeat {
+        response <- httr::GET(paste("https://", host, "/v2/applications.json", sep = ""),
+                              as='text',
+                              query=list(page=page),
+                              httr::config(verbose=verbose),
+                              httr::accept("application/json"),
+                              httr::add_headers('X-Api-Key'=api_key))
+        result <- httr::content(response)
+        if (!is.null(result$error)) {
+            stop("Error in response: ", result$error)
+        }
+        chunk <- dplyr::bind_rows(lapply(result$applications, function(app) {
+            throughput <- if (app$reporting) app$application_summary$throughput else 0
+            data.frame(id=app$id,
+                       name=app$name,
+                       throughput=throughput,
+                       stringsAsFactors = F)
+        }))
+        df <- dplyr::bind_rows(df, chunk)
+        if (nrow(chunk) < 200) break
+        page <- page + 1
+    }
+    dplyr::arrange(dplyr::filter(df, throughput > 0),
+                   desc(throughput))
 }
 
 ## Utility functions
@@ -134,10 +177,10 @@ send_query <- function(app_id,
                      app_id,"/metrics/data.json",
                      sep = '')
     }
-    
+
     key <- digest::digest(c(url, unlist(unname(query))))
     cachefile <- paste('query_cache/', key, '.RData', sep='')
-    
+
     response <- httr::GET(url,
                           query=query,
                           as='text',
