@@ -20,7 +20,7 @@ rpm_query(account_id, api_key, app_id, duration = 60 * 60,
 
 \item{end_time}{the end of the time window}
 
-\item{period}{duration of each timeslice in seconds, minimum of 60}
+\item{period}{duration of each timeslice as lubridate::Duration or scalar value in seconds, minimum of 60}
 
 \item{metrics}{a character vector of metric names}
 

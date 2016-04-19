@@ -1,3 +1,7 @@
+## Version 0.1.0.1001
+
+* Bug fixes
+
 ## Version 0.1.0.1000
 
 * Add `rpm_applications()` function

@@ -14,7 +14,7 @@
 #' @param app_id the application id. Use a value of -1 to generate a fake response for tests.
 #' @param duration length of time in seconds of the time window of the metric data
 #' @param end_time the end of the time window
-#' @param period duration of each timeslice in seconds, minimum of 60
+#' @param period duration of each timeslice as lubridate::Duration or scalar value in seconds, minimum of 60
 #' @param metrics a character vector of metric names
 #' @param verbose show extra information about the calls
 #' @param values a character vector of metric values (calls_per_minute, average_response_time, etc)
@@ -51,7 +51,7 @@ rpm_query <- function(account_id,
 
     query <- append(metrics, values)
 
-    if (is.numeric(period) && !lubridate::is.period(period)) {
+    if (is.numeric(period) && !lubridate::is.duration(period)) {
         period <- lubridate::dseconds(period)
     }
     if (is.null(period)) {
