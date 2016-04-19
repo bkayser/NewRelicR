@@ -74,7 +74,7 @@ rpm_query <- function(account_id,
     }
 
     if (is.null(end_time)) end_time <- Sys.time()
-    num_chunks <- (end_time - start_time) / as.duration(fetch_size)
+    num_chunks <- (end_time - start_time) / lubridate::as.duration(fetch_size)
     if (num_chunks > 5) message("Sending ", ceiling(num_chunks), " queries...")
     chunk.start <- start_time
     chunk.end <- min(end_time, chunk.start + fetch_size)
@@ -131,9 +131,9 @@ rpm_query <- function(account_id,
 #' @return a data table with observations for each application and variables for the id, name, and throughput
 #' @export
 rpm_applications <- function(account_id,
-                         api_key,
-                         host='api.newrelic.com',
-                         verbose=F) {
+                             api_key,
+                             host='api.newrelic.com',
+                             verbose=F) {
     page <- 1
     df <- data.frame()
     repeat {
