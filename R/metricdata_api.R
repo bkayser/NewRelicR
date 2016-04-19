@@ -43,9 +43,6 @@ rpm_query <- function(account_id,
                       cache=T,
                       host='api.newrelic.com') {
 
-    message("HEY: ")
-    message(str(app_id))
-
     metrics <- as.list(metrics)
     names(metrics) <- rep('names[]', length(metrics))
 
