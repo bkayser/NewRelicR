@@ -1,6 +1,6 @@
-## Version 0.1.0.1001
+## Version 0.1.0.1002
 
-* Bug fixes
+* Bug fixes and warnings
 
 ## Version 0.1.0.1000
 
