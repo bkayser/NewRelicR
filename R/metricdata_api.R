@@ -43,6 +43,9 @@ rpm_query <- function(account_id,
                       cache=T,
                       host='api.newrelic.com') {
 
+    message("HEY: ")
+    message(str(app_id))
+
     metrics <- as.list(metrics)
     names(metrics) <- rep('names[]', length(metrics))
 
@@ -51,17 +54,17 @@ rpm_query <- function(account_id,
 
     query <- append(metrics, values)
 
-    if (is.numeric(period) && !lubridate::is.duration(period)) {
+    if (!lubridate::is.duration(period)) {
         period <- lubridate::dseconds(period)
     }
     if (is.null(period)) {
         fetch_size <- lubridate::dseconds(duration)
     } else if (period >= lubridate::dhours(1)) {
-        fetch_size <- lubridate::days(7)
+        fetch_size <- lubridate::ddays(7)
     } else if (period >= lubridate::dminutes(10)) {
         fetch_size <- lubridate::dhours(24)
     } else if (period >= lubridate::dminutes(1)) {
-        fetch_size <- lubridate::hours(3)
+        fetch_size <- lubridate::dhours(3)
     } else {
         stop("Period must be greater than 60 seconds: ", period)
     }
