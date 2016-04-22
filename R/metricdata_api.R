@@ -82,7 +82,7 @@ rpm_query <- function(account_id,
                     list( period=as.numeric(period),
                           raw=TRUE))
 
-    key <- digest::digest(c(url, as.numeric(start_time), as.numeric(end_time), as.numeric(period)))
+    key <- digest::digest(c(query, as.numeric(start_time), as.numeric(end_time)))
     cachefile <- paste('query_cache/', key, '.RData', sep='')
     if (cache & file.exists(cachefile)) {
         if (!dir.exists('query_cache')) dir.create('query_cache')
