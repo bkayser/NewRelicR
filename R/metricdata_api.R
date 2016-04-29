@@ -22,6 +22,9 @@
 #'     when subsequent calls have matching parameters
 #' @param host use to proxy requests through an intermediate host you can override the default host
 #'     of \code{api.newrelic.com}.
+#' @param progress_callback is a caller supplied function that takes two arguments: the iteration
+#'     number and the total number of iterations.
+#' @param ... arguments passed on to \code{progress_callback} if provided.
 #' @seealso \code{\link{newrelic_api}}
 #' @seealso \href{https://docs.newrelic.com/docs/apis/rest-api-v2/requirements/new-relic-rest-api-v2-getting-started}{New Relic REST API Documentation}
 #' @seealso \href{https://docs.newrelic.com/docs/apis/rest-api-v2/requirements/api-keys}{How to get API keys}
@@ -41,7 +44,9 @@ rpm_query <- function(account_id,
                       verbose=F,
                       values='average_response_time',
                       cache=T,
-                      host='api.newrelic.com') {
+                      host='api.newrelic.com',
+                      progress_callback=NULL,
+                      ...) {
 
     metrics <- as.list(metrics)
     names(metrics) <- rep('names[]', length(metrics))
@@ -75,7 +80,6 @@ rpm_query <- function(account_id,
 
     if (is.null(end_time)) end_time <- Sys.time()
     num_chunks <- (end_time - start_time) / lubridate::as.duration(fetch_size)
-    if (num_chunks > 5) message("Sending ", ceiling(num_chunks), " queries...")
     chunk.start <- start_time
     chunk.end <- min(end_time, chunk.start + fetch_size)
     query <- append(query,
@@ -90,7 +94,11 @@ rpm_query <- function(account_id,
         if (verbose) message('read cached: ', cachefile)
         return(data)
     }
-
+    if (num_chunks > 5) message("Sending ", ceiling(num_chunks), " queries...")
+    progress_count <- 0
+    if (!is.null(progress_callback)) {
+        progress_callback(progress_count, num_chunks)
+    }
     chunks <- list()
     repeat {
         query['from'] <- to_json_time(chunk.start)
@@ -104,6 +112,9 @@ rpm_query <- function(account_id,
                            verbose)
 
         chunks[[length(chunks)+1]] <- data
+        if (!is.null(progress_callback)) {
+            progress_callback(progress_count, num_chunks)
+        }
         if (chunk.end < end_time) {
             chunk.start <- chunk.end
             chunk.end <- min(end_time, chunk.start + fetch_size)

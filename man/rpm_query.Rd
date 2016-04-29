@@ -7,7 +7,7 @@
 rpm_query(account_id, api_key, app_id, duration = 60 * 60,
   end_time = Sys.time(), period = NULL, metrics = "HttpDispatcher",
   verbose = F, values = "average_response_time", cache = T,
-  host = "api.newrelic.com")
+  host = "api.newrelic.com", progress_callback = NULL, ...)
 }
 \arguments{
 \item{account_id}{your New Relic account ID}
@@ -33,6 +33,11 @@ when subsequent calls have matching parameters}
 
 \item{host}{use to proxy requests through an intermediate host you can override the default host
 of \code{api.newrelic.com}.}
+
+\item{progress_callback}{is a caller supplied function that takes two arguments: the iteration
+number and the total number of iterations.}
+
+\item{...}{arguments passed on to \code{progress_callback} if provided.}
 }
 \value{
 a data table with observations as timeslices and the timeslice start time, metric name, and values in the variables
