@@ -78,7 +78,7 @@ nrdb_query <- function(account_id, api_key, nrql_query) {
 #' @export
 #'
 nrdb_session_ids <- function(account_id, api_key, app_id, from=10, to=6, size=50, diverse=T) {
-    if (diverse) {
+    if (!diverse) {
         # Get the users with their pages:
         df <- nrdb_query(account_id, api_key,
                          paste('select count(*) from PageView ',
@@ -90,9 +90,10 @@ nrdb_session_ids <- function(account_id, api_key, app_id, from=10, to=6, size=50
     } else {
         session_ids <- vector('character')
         since_minutes_ago <- from * 60
-        until_minutes_ago <- since_minutes_ago + 30
+        until_minutes_ago <- since_minutes_ago - 30
         while (size > length(session_ids) & (since_minutes_ago > (to * 60))) {
             limit <- min(c(size, 60))
+            until_minutes_ago <- since_minutes_ago - 30
             v <- nrdb_query(account_id, api_key,
                             paste('select uniques(name) from PageView ',
                                   'where appId =', app_id,
@@ -101,7 +102,7 @@ nrdb_session_ids <- function(account_id, api_key, app_id, from=10, to=6, size=50
                                   'facet session',
                                   'limit', limit))
             session_ids <- unique(append(session_ids, as.character(v$name)))
-            until_minutes_ago <- until_minutes_ago + 30
+            since_minutes_ago <- until_minutes_ago
         }
         return(session_ids)
     }
