@@ -156,8 +156,8 @@ nrdb_sessions <- function(account_id, api_key, session_ids, limit=750) {
 #' @return a data frame with two variables, \code{name} and \code{count}
 #' @export
 get_top_transactions <- function(account_id, api_key, app_id, limit=10, event_type='Transaction') {
-    nrdb_query(account_id, api_key, paste("select count(*) from ', event_type, ' where appId=", app_id, " facet name limit ",limit, sep=''),
-         verbose=F)
+    nrdb_query(account_id, api_key, paste('select count(*) from ', event_type, ' where appId=', app_id, ' facet name limit ',limit, sep=''))
+         
 }
 
 #' Retrieve a sample of events for an application.

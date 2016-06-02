@@ -1,3 +1,7 @@
+## Version 0.1.0.1004
+
+* Fix bug in `get_top_transactions()`
+
 ## Version 0.1.0.1003
 
 * Bug fixes and warnings
