@@ -4,7 +4,7 @@
 \alias{nrdb_query}
 \title{Execute NRQL queries on NRDB (Insights).}
 \usage{
-nrdb_query(account_id, api_key, nrql_query)
+nrdb_query(account_id, api_key, nrql_query, verbose = F)
 }
 \arguments{
 \item{account_id}{your New Relic account ID}
@@ -12,6 +12,8 @@ nrdb_query(account_id, api_key, nrql_query)
 \item{api_key}{your New Relic NRDB (Insights) API key}
 
 \item{nrql_query}{the NRQL query to execute}
+
+\item{verbose}{indicates status information to be printed out}
 }
 \value{
 a data frame with the results

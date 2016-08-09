@@ -89,12 +89,11 @@ rpm_query <- function(account_id,
     key <- digest::digest(c(query, as.numeric(start_time), as.numeric(end_time)))
     cachefile <- paste('query_cache/', key, '.RData', sep='')
     if (cache & file.exists(cachefile)) {
-        if (!dir.exists('query_cache')) dir.create('query_cache')
         data <- readRDS(file=cachefile)
         if (verbose) message('read cached: ', cachefile)
         return(data)
     }
-    if (num_chunks > 5) message("Sending ", ceiling(num_chunks), " queries...")
+    if (num_chunks > 5 && verbose) message("Sending ", ceiling(num_chunks), " queries...")
     progress_count <- 0
     if (!is.null(progress_callback)) {
         progress_callback(progress_count, num_chunks)
@@ -124,6 +123,7 @@ rpm_query <- function(account_id,
     }
     data <- dplyr::bind_rows(chunks)
     if (cache) {
+        if (!dir.exists(dirname(cachefile))) dir.create(dirname(cachefile))
         saveRDS(data, file=cachefile)
         if (verbose) message('write cache: ', cachefile)
     }

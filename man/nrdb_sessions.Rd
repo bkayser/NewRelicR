@@ -4,7 +4,7 @@
 \alias{nrdb_sessions}
 \title{Get the Page Views for a list of session Ids.}
 \usage{
-nrdb_sessions(account_id, api_key, session_ids, limit = 750)
+nrdb_sessions(account_id, api_key, session_ids, limit = 750, verbose = F)
 }
 \arguments{
 \item{account_id}{your New Relic account ID}
@@ -16,6 +16,8 @@ nrdb_sessions(account_id, api_key, session_ids, limit = 750)
 \item{limit}{the limit on the number of PageViews in a session to this number; if there are
 more than this number of pages the session is skipped.  Default limit is 750 and the max limit
 is 1000.}
+
+\item{verbose}{print out status messages}
 }
 \value{
 list of data frames for each session that contain a page view in each row

@@ -1,3 +1,8 @@
+## Version 0.1.0.1005
+
+* Made verbose output an option; quiet by default
+* Fix bug in managing query cache
+
 ## Version 0.1.0.1004
 
 * Fix bug in `get_top_transactions()`

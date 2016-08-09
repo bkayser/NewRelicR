@@ -6,6 +6,7 @@
 #' @param account_id your New Relic account ID
 #' @param api_key your New Relic NRDB (Insights) API key
 #' @param nrql_query the NRQL query to execute
+#' @param verbose indicates status information to be printed out
 #'
 #' @return a data frame with the results
 #' @seealso \href{https://docs.newrelic.com/docs/insights/new-relic-insights/adding-querying-data/querying-your-data-remotely}{New Relic NRQL REST API}
@@ -16,8 +17,8 @@
 #' @examples
 #'     nrdb_query(account_id=-1, api_key='your_nrdb_api_license_key_here',
 #'               nrql_query="select count(*) from PageView facet name")
-nrdb_query <- function(account_id, api_key, nrql_query) {
-    message(paste("Query:", nrql_query))
+nrdb_query <- function(account_id, api_key, nrql_query, verbose=F) {
+    if (verbose) message(paste("Query:", nrql_query))
     if (account_id > 0) {
         url <- paste("https://insights-api.newrelic.com/v1/accounts/",
                      account_id, "/query", sep = '')
@@ -116,12 +117,13 @@ nrdb_session_ids <- function(account_id, api_key, app_id, from=10, to=6, size=50
 #' @param limit the limit on the number of PageViews in a session to this number; if there are
 #' more than this number of pages the session is skipped.  Default limit is 750 and the max limit
 #' is 1000.
+#' @param verbose print out status messages
 #'
 #' @return list of data frames for each session that contain a page view in each row
 #'   and the union of all attributes as columns
 #' @export
 #'
-nrdb_sessions <- function(account_id, api_key, session_ids, limit=750) {
+nrdb_sessions <- function(account_id, api_key, session_ids, limit=750, verbose=F) {
     sessions <- list()
 
     if (limit > 1000) stop("Limit may not be greater than 1000")
@@ -133,10 +135,10 @@ nrdb_sessions <- function(account_id, api_key, session_ids, limit=750) {
                                    'since 36 hours ago',
                                    'limit', limit))
         if (nrow(events) < limit && nrow(events) > 1) {
-            message(paste("Session:", session, "-", nrow(events), "events"))
+            if (verbose) message(paste("Session:", session, "-", nrow(events), "events"))
             sessions[[session]] <- postprocess(events)
         } else {
-            message(paste("Skipped",session, "because there were", nrow(events), "events."))
+            if (verbose) message(paste("Skipped",session, "because there were", nrow(events), "events."))
         }
     }
     sessions
@@ -157,7 +159,7 @@ nrdb_sessions <- function(account_id, api_key, session_ids, limit=750) {
 #' @export
 get_top_transactions <- function(account_id, api_key, app_id, limit=10, event_type='Transaction') {
     nrdb_query(account_id, api_key, paste('select count(*) from ', event_type, ' where appId=', app_id, ' facet name limit ',limit, sep=''))
-         
+
 }
 
 #' Retrieve a sample of events for an application.
