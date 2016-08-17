@@ -5,7 +5,7 @@
 \title{Get the top transactions.}
 \usage{
 get_top_transactions(account_id, api_key, app_id, limit = 10,
-  event_type = "Transaction")
+  event_type = "Transaction", end_time)
 }
 \arguments{
 \item{account_id}{your New Relic account ID}

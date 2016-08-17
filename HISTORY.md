@@ -1,3 +1,7 @@
+## Version 0.1.0.1006
+
+* Add end_time parameter to get top applications
+
 ## Version 0.1.0.1005
 
 * Made verbose output an option; quiet by default
