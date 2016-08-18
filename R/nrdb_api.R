@@ -147,7 +147,8 @@ nrdb_sessions <- function(account_id, api_key, session_ids, limit=750, verbose=F
 #' Get the top transactions.
 #'
 #' This will return a list of transaction names and their call count for the last 30 minutes
-#' ordered according to call count.
+#' ordered according to call count.  If an end_time is provided then a 30 minute period just
+#' prior to the end_time is examined.
 #'
 #' @param account_id your New Relic account ID
 #' @param api_key your New Relic NRDB (Insights) API key
@@ -164,7 +165,7 @@ get_top_transactions <- function(account_id,
                                  event_type='Transaction',
                                  end_time) {
     q <- paste0('select count(*) from ', event_type, ' where appId=', app_id, ' facet name limit ',limit)
-    if (!missing(end_time)) q <- paste(q, 'since', as.numeric(end_time))
+    if (!missing(end_time)) q <- paste(q, 'until', as.numeric(end_time))
     nrdb_query(account_id, api_key, paste('select count(*) from ', event_type, ' where appId=', app_id, ' facet name limit ',limit, sep=''))
 }
 

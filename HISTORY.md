@@ -1,4 +1,4 @@
-## Version 0.1.0.1006
+## Version 0.1.0.1007
 
 * Add end_time parameter to get top applications
 

@@ -23,6 +23,7 @@ a data frame with two variables, \code{name} and \code{count}
 }
 \description{
 This will return a list of transaction names and their call count for the last 30 minutes
-ordered according to call count.
+ordered according to call count.  If an end_time is provided then a 30 minute period just
+prior to the end_time is examined.
 }
 
