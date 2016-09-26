@@ -2,9 +2,10 @@
 % Please edit documentation in R/nrdb_api.R
 \name{nrdb_sessions}
 \alias{nrdb_sessions}
-\title{Get the Page Views for a list of session Ids.}
+\title{Get the user interactions for a list of session Ids, including Page Views and Page Actions.}
 \usage{
-nrdb_sessions(account_id, api_key, session_ids, limit = 750, verbose = F)
+nrdb_sessions(account_id, api_key, session_ids, limit = 750,
+  page_views_only = T)
 }
 \arguments{
 \item{account_id}{your New Relic account ID}
@@ -17,13 +18,13 @@ nrdb_sessions(account_id, api_key, session_ids, limit = 750, verbose = F)
 more than this number of pages the session is skipped.  Default limit is 750 and the max limit
 is 1000.}
 
-\item{verbose}{print out status messages}
+\item{page_views_only}{if true (default) will not get PageActions}
 }
 \value{
 list of data frames for each session that contain a page view in each row
   and the union of all attributes as columns
 }
 \description{
-Get the Page Views for a list of session Ids.
+Get the user interactions for a list of session Ids, including Page Views and Page Actions.
 }
 

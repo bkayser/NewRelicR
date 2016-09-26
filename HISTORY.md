@@ -1,5 +1,9 @@
 ## Version 0.1.0.1007
 
+* Add support for loading PageActions in session data
+
+## Version 0.1.0.1007
+
 * Add end_time parameter to get top applications
 
 ## Version 0.1.0.1005

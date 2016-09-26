@@ -91,13 +91,13 @@ nrdb_session_ids <- function(account_id, api_key, app_id, from=10, to=6, size=50
     } else {
         session_ids <- vector('character')
         since_minutes_ago <- from * 60
-        until_minutes_ago <- since_minutes_ago - 30
         while (size > length(session_ids) & (since_minutes_ago > (to * 60))) {
             limit <- min(c(size, 60))
             until_minutes_ago <- since_minutes_ago - 30
             v <- nrdb_query(account_id, api_key,
                             paste('select uniques(name) from PageView ',
                                   'where appId =', app_id,
+                                  "and name != 'public_access/charts/show' ",
                                   'since', since_minutes_ago, "minutes ago",
                                   'until', until_minutes_ago, "minutes ago",
                                   'facet session',
@@ -109,7 +109,7 @@ nrdb_session_ids <- function(account_id, api_key, app_id, from=10, to=6, size=50
     }
 }
 
-#' Get the Page Views for a list of session Ids.
+#' Get the user interactions for a list of session Ids, including Page Views and Page Actions.
 #'
 #' @param account_id your New Relic account ID
 #' @param api_key your New Relic NRDB (Insights) API key
@@ -117,13 +117,13 @@ nrdb_session_ids <- function(account_id, api_key, app_id, from=10, to=6, size=50
 #' @param limit the limit on the number of PageViews in a session to this number; if there are
 #' more than this number of pages the session is skipped.  Default limit is 750 and the max limit
 #' is 1000.
-#' @param verbose print out status messages
+#' @param page_views_only if true (default) will not get PageActions
 #'
 #' @return list of data frames for each session that contain a page view in each row
 #'   and the union of all attributes as columns
 #' @export
 #'
-nrdb_sessions <- function(account_id, api_key, session_ids, limit=750, verbose=F) {
+nrdb_sessions <- function(account_id, api_key, session_ids, limit=750, page_views_only=T) {
     sessions <- list()
 
     if (limit > 1000) stop("Limit may not be greater than 1000")
@@ -134,11 +134,52 @@ nrdb_sessions <- function(account_id, api_key, session_ids, limit=750, verbose=F
                                    paste("where session='",session,"'",sep=''),
                                    'since 36 hours ago',
                                    'limit', limit))
-        if (nrow(events) < limit && nrow(events) > 1) {
-            if (verbose) message(paste("Session:", session, "-", nrow(events), "events"))
-            sessions[[session]] <- postprocess(events)
+        if (is.null(events)) {
+            message("No events found in session ", session)
+            next
+        }
+        events <- tryCatch(mutate(events, type='PageView') %>%
+                               select(timestamp,
+                                      duration,
+                                      starts_with('time_window'),
+                                      name,
+                                      starts_with('userAgent'),
+                                      session,
+                                      type,
+                                      ends_with('Code'),
+                                      contains('uration'),
+                                      starts_with('user_'),
+                                      -user_id),
+                           error=function(e) {
+                               message("Error processing session ", session, ": ", e)
+                               NULL
+                           })
+
+        if (is.null(events)) {
+            message("Skipped ", session)
+        } else if (nrow(events) < limit && nrow(events) > 1) {
+            actions <- nrdb_query(account_id, api_key,
+                                  paste("select * from PageAction",
+                                        paste("where session='",session,"'",sep=''),
+                                        'since 36 hours ago',
+                                        'limit', limit))
+            if (page_views_only || is.null(actions) || nrow(actions) == 0) {
+                message(paste("Session:", session, "-", nrow(events), "page views"))
+                sessions[[session]] <- postprocess(events)
+            } else {
+                message(paste("Session:", session, "-", nrow(events), "page views, ", nrow(actions), " page actions"))
+                actions <- actions %>%
+                    select(timestamp,
+                           starts_with('last_'),
+                           name,
+                           session,
+                           actionName) %>%
+                    mutate(duration=0,
+                           type='PageAction')
+                sessions[[session]] <- postprocess(bind_rows(events, actions))
+            }
         } else {
-            if (verbose) message(paste("Skipped",session, "because there were", nrow(events), "events."))
+            message(paste("Skipped",session, "because there were", nrow(events), "events."))
         }
     }
     sessions
