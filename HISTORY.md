@@ -1,3 +1,8 @@
+## Version 0.1.0.1010
+
+* Fixed problem calculating think time
+* Switched to include BrowserInteractions now available with SPA monitoring
+
 ## Version 0.1.0.1009
 
 * Updated the session functions in the NRDB API.  Added some new options.
