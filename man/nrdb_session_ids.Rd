@@ -4,8 +4,8 @@
 \alias{nrdb_session_ids}
 \title{Get User Session IDs.}
 \usage{
-nrdb_session_ids(account_id, api_key, app_id, from = 10, to = 6,
-  size = 50, diverse = T)
+nrdb_session_ids(account_id, api_key, app_id, from = 48, to = 6,
+  size = 50, max_length = NULL, diverse = T)
 }
 \arguments{
 \item{account_id}{your New Relic account ID}
@@ -21,6 +21,8 @@ by using the ID in the URL when viewing the application.}
 if you fetch sessions more recent than that they may still be open and therefore incomplete.}
 
 \item{size}{the maximum number of session ids to fetch}
+
+\item{max_length}{applies a filter with a maximum session length in pages}
 
 \item{diverse}{a boolean indicating that the session ids returned will be prioritized according to
 how many distinct pages were accessed during the session. This is important if you have sessions from

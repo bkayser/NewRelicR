@@ -4,7 +4,7 @@
 \alias{nrdb_sessions}
 \title{Get the user interactions for a list of session Ids, including Page Views and Page Actions.}
 \usage{
-nrdb_sessions(account_id, api_key, session_ids, limit = 750,
+nrdb_sessions(account_id, api_key, session_ids, limit = NULL,
   page_views_only = T)
 }
 \arguments{

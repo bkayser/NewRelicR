@@ -26,14 +26,14 @@ nrdb_query <- function(account_id, api_key, nrql_query, verbose=F) {
         url <- 'http://mockbin.org/bin/b1db81d0-a699-44ae-87e0-ed9092d1e017'
     }
     response <- httr::POST(url,
-                          body=list(nrql=nrql_query),
-                          encode='json',
-                          httr::accept("application/json"),
-                          httr::add_headers('X-Query-Key'=api_key))
+                           body=list(nrql=nrql_query),
+                           encode='json',
+                           httr::accept("application/json"),
+                           httr::add_headers('X-Query-Key'=api_key))
     result <- httr::content(response, type='application/json')
 
-        if (!is.null(result$error)) {
-        stop("Error in response: ", result$error)
+    if (!is.null(result$error)) {
+        stop("Error in response: ", result$error, "\nQuery: ", nrql_query)
     }
     if (!is.null(result$facets)) {
         dplyr::tbl_df(dplyr::bind_rows(lapply(result$facets, as.data.frame, stringsAsFactors=F)))
@@ -71,6 +71,7 @@ nrdb_query <- function(account_id, api_key, nrql_query, verbose=F) {
 #' @param to number of hours into the past to end the hunt for sessions.  The default is six because
 #' if you fetch sessions more recent than that they may still be open and therefore incomplete.
 #' @param size the maximum number of session ids to fetch
+#' @param max_length applies a filter with a maximum session length in pages
 #' @param diverse a boolean indicating that the session ids returned will be prioritized according to
 #' how many distinct pages were accessed during the session. This is important if you have sessions from
 #' robots or monitors that you want to ignore.
@@ -78,35 +79,31 @@ nrdb_query <- function(account_id, api_key, nrql_query, verbose=F) {
 #' @return a character vector of session ids
 #' @export
 #'
-nrdb_session_ids <- function(account_id, api_key, app_id, from=10, to=6, size=50, diverse=T) {
-    if (!diverse) {
-        # Get the users with their pages:
-        df <- nrdb_query(account_id, api_key,
-                         paste('select count(*) from PageView ',
-                               'where appId =', app_id,
-                               'since', from, 'hours ago until',
-                               to, 'hours ago facet session',
-                               'limit', size))
-        return(df$name)
-    } else {
-        session_ids <- vector('character')
-        since_minutes_ago <- from * 60
-        while (size > length(session_ids) & (since_minutes_ago > (to * 60))) {
-            limit <- min(c(size, 60))
-            until_minutes_ago <- since_minutes_ago - 30
-            v <- nrdb_query(account_id, api_key,
-                            paste('select uniques(name) from PageView ',
-                                  'where appId =', app_id,
-                                  "and name != 'public_access/charts/show' ",
-                                  'since', since_minutes_ago, "minutes ago",
-                                  'until', until_minutes_ago, "minutes ago",
-                                  'facet session',
-                                  'limit', limit))
-            session_ids <- unique(append(session_ids, as.character(v$name)))
-            since_minutes_ago <- until_minutes_ago
-        }
-        return(session_ids)
+nrdb_session_ids <- function(account_id,
+                             api_key,
+                             app_id,
+                             from=48,
+                             to=6,
+                             size=50,
+                             max_length=NULL,
+                             diverse=T) {
+
+    since_minutes_ago <- from * 60
+    limit <- min(999, max(size * 4, 60))
+    until_minutes_ago <- since_minutes_ago - 30
+    v <- nrdb_query(account_id, api_key,
+                    paste('select uniqueCount(name), count(*) from PageView ',
+                          'where appId =', app_id,
+                          "and name != 'public_access/charts/show' ",
+                          'since', since_minutes_ago, "minutes ago",
+                          'until', until_minutes_ago, "minutes ago",
+                          'facet session',
+                          'limit', limit))
+    v <- data.frame(session=as.character(v$name), length=v$results.count)
+    if (!missing(max_length)) {
+        v <- dplyr::filter(v, length <= max_length)
     }
+    return(dplyr::tbl_df(head(v, size)))
 }
 
 #' Get the user interactions for a list of session Ids, including Page Views and Page Actions.
@@ -123,63 +120,13 @@ nrdb_session_ids <- function(account_id, api_key, app_id, from=10, to=6, size=50
 #'   and the union of all attributes as columns
 #' @export
 #'
-nrdb_sessions <- function(account_id, api_key, session_ids, limit=750, page_views_only=T) {
+nrdb_sessions <- function(account_id, api_key, session_ids, limit=NULL, page_views_only=T) {
+    if (missing(limit) || limit > 1000) warning("A maximum of 1000 pages per session will be captured")
     sessions <- list()
-
-    if (limit > 1000) stop("Limit may not be greater than 1000")
-
     for(session in session_ids) {
-        events <- nrdb_query(account_id, api_key,
-                             paste("select * from PageView",
-                                   paste("where session='",session,"'",sep=''),
-                                   'since 36 hours ago',
-                                   'limit', limit))
-        if (is.null(events)) {
-            message("No events found in session ", session)
-            next
-        }
-        events <- tryCatch(mutate(events, type='PageView') %>%
-                               select(timestamp,
-                                      duration,
-                                      starts_with('time_window'),
-                                      name,
-                                      starts_with('userAgent'),
-                                      session,
-                                      type,
-                                      ends_with('Code'),
-                                      contains('uration'),
-                                      starts_with('user_'),
-                                      -user_id),
-                           error=function(e) {
-                               message("Error processing session ", session, ": ", e)
-                               NULL
-                           })
-
-        if (is.null(events)) {
-            message("Skipped ", session)
-        } else if (nrow(events) < limit && nrow(events) > 1) {
-            actions <- nrdb_query(account_id, api_key,
-                                  paste("select * from PageAction",
-                                        paste("where session='",session,"'",sep=''),
-                                        'since 36 hours ago',
-                                        'limit', limit))
-            if (page_views_only || is.null(actions) || nrow(actions) == 0) {
-                message(paste("Session:", session, "-", nrow(events), "page views"))
-                sessions[[session]] <- postprocess(events)
-            } else {
-                message(paste("Session:", session, "-", nrow(events), "page views, ", nrow(actions), " page actions"))
-                actions <- actions %>%
-                    select(timestamp,
-                           starts_with('last_'),
-                           name,
-                           session,
-                           actionName) %>%
-                    mutate(duration=0,
-                           type='PageAction')
-                sessions[[session]] <- postprocess(bind_rows(events, actions))
-            }
-        } else {
-            message(paste("Skipped",session, "because there were", nrow(events), "events."))
+        pages <- process_session(account_id, api_key, session, limit, page_views_only)
+        if (!plyr::empty(pages)) {
+            sessions[[session]] <- pages
         }
     }
     sessions
@@ -228,16 +175,16 @@ get_top_transactions <- function(account_id,
 #' @export
 #'
 sample_events <- function(account_id,
-                       api_key,
-                       app_id,
-                       end_time=Sys.time(),
-                       limit=100,
-                       event_type='Transaction') {
+                          api_key,
+                          app_id,
+                          end_time=Sys.time(),
+                          limit=100,
+                          event_type='Transaction') {
     c <- nrdb_query(account_id, api_key, paste('select(count(*)) from',
-                                                        event_type,
-                                                        'where appId=',
-                                                        app_id,
-                                                        'since 30 minutes ago'))
+                                               event_type,
+                                               'where appId=',
+                                               app_id,
+                                               'since 30 minutes ago'))
     rate <- c / ( 30 * 60  )
     batch_duration_ms <- 1000 * (800 / rate)
 
@@ -262,8 +209,72 @@ sample_events <- function(account_id,
     top(postprocess(df, add_think_time=F), limit)
 }
 
+process_session <- function(account_id,
+                            api_key,
+                            session_id,
+                            limit=NULL,
+                            page_views_only=T,
+                            history_hours=3*24) {
 
+    events_count <- nrdb_query(account_id, api_key,
+                               paste0("select count(*) from PageView",
+                                      " where session='",session_id,"' ",
+                                      ' since ', history_hours, ' hours ago'))
+
+    if (events_count <= 1 || (!is.null(limit) && events_count > limit)) {
+        message("Skipped ",session_id, " because there were ", events_count, " events.")
+        return(NULL)
+    }
+
+    if (is.null(limit))
+        limit <- 1000
+    else
+        limit <- min(limit, 1000)
+
+    events <- nrdb_query(account_id, api_key,
+                         paste0("select * from PageView where session='",session_id,"'",
+                               ' since ', history_hours, ' hours ago ',
+                               ' limit ', format(limit, scientific = F)))
+    if (plyr::empty(events)) {
+        message("No events found in session ", session_id)
+        return(NULL)
+    }
+
+    events['type'] <- 'PageView'
+
+    if (page_views_only) {
+        message(paste("Session:", session_id, "-", nrow(events), "page views"))
+    } else {
+        actions <- nrdb_query(account_id, api_key,
+                              paste("select * from PageAction",
+                                    paste("where session='",session_id,"'",sep=''),
+                                    'since 36 hours ago',
+                                    'limit', limit))
+        if (is.null(actions) || nrow(actions) == 0) {
+            message(paste("Session:", session_id, "-", nrow(events), "page views"))
+        } else {
+            message(paste("Session:", session_id, "-", nrow(events), "page views, ", nrow(actions), " page actions"))
+            actions <- actions %>%
+                select(timestamp,
+                       starts_with('last_'),
+                       name,
+                       session_id,
+                       actionName) %>%
+                mutate(duration=0,
+                       type='PageAction')
+            events <- bind_rows(events, actions)
+        }
+    }
+    return(postprocess(events))
+    return(tryCatch(postprocess(events),
+                    error=function(e) {
+                        warning("Error post-processing session ", session_id, ": ", e)
+                        NULL
+                    }))
+
+}
 ## Utility functions
+
 
 unpack <- function(l) {
     if (class(l) != 'list') return(l)
@@ -275,9 +286,19 @@ nrdb_timestamp <- function(t) {
     as.POSIXct(t/1000, origin="1970-01-01")
 }
 postprocess <- function(events, add_think_time=T) {
+    if (is.null(events)) {
+        return(NULL)
+    }
+    # Strip off the transaction category to save space
     v <- dplyr::mutate(events,
                        timestamp=nrdb_timestamp(timestamp),
                        name=gsub('^(WebTransaction/(JSP/|Servlet/)|Controller/)', '', name))
+
+    # Convert id fields to strings.  If an id field is all decimal digits then it
+    # is transformed to a number and that won't bind with the values from other queries.
+    for (colname in grep('_id(_|$)', names(v))) {
+        v[colname] <- sapply(v[[colname]], as.character)
+    }
     v <- dplyr::arrange(v, timestamp)
     if (add_think_time & nrow(v) > 1) {
         for (i in 1:(nrow(v)-1)) {

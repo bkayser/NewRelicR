@@ -1,4 +1,8 @@
-## Version 0.1.0.1007
+## Version 0.1.0.1009
+
+* Updated the session functions in the NRDB API.  Added some new options.
+
+## Version 0.1.0.1008
 
 * Add support for loading PageActions in session data
 
