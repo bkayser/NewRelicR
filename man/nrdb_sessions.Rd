@@ -5,7 +5,7 @@
 \title{Get the user interactions for a list of session Ids, including Page Views and Page Actions.}
 \usage{
 nrdb_sessions(account_id, api_key, session_ids, app_id = NULL, limit = NULL,
-  page_views_only = F)
+  from = 24 * 3, event_type = "PageView")
 }
 \arguments{
 \item{account_id}{your New Relic account ID}
@@ -14,13 +14,13 @@ nrdb_sessions(account_id, api_key, session_ids, app_id = NULL, limit = NULL,
 
 \item{session_ids}{the list of session ids obtained using \code{\link{nrdb_session_ids}}}
 
-\item{app_id}{internal artifact--not needed in general}
-
 \item{limit}{the limit on the number of PageViews in a session to this number; if there are
 more than this number of pages the session is skipped.  Default limit is 750 and the max limit
 is 1000.}
 
-\item{page_views_only}{if false (default) will not get BrowserInteractions}
+\item{from}{the starting point in hours past to search for events}
+
+\item{page_views_only}{if true (default) will not get PageActions}
 }
 \value{
 list of data frames for each session that contain a page view in each row

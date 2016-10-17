@@ -4,8 +4,9 @@
 \alias{nrdb_session_ids}
 \title{Get User Session IDs.}
 \usage{
-nrdb_session_ids(account_id, api_key, app_id, from = 48, to = 6,
-  size = 50, max_length = NULL, diverse = T)
+nrdb_session_ids(account_id, api_key, app_id, from = 48, to = 1,
+  size = 50, min_length = 10, max_length = NULL, min_unique = 1,
+  event_type = "PageView")
 }
 \arguments{
 \item{account_id}{your New Relic account ID}
@@ -23,17 +24,13 @@ if you fetch sessions more recent than that they may still be open and therefore
 \item{size}{the maximum number of session ids to fetch}
 
 \item{max_length}{applies a filter with a maximum session length in pages}
-
-\item{diverse}{a boolean indicating that the session ids returned will be prioritized according to
-how many distinct pages were accessed during the session. This is important if you have sessions from
-robots or monitors that you want to ignore.}
 }
 \value{
 a character vector of session ids
 }
 \description{
-This looks in the given time range for the top sessions based on either
-the size of the session (diverse=F) or the number of distinct pages called
-during the session (diverse=T).
+This looks in the given time range for the top sessions based 
+on the number of distinct pages called
+during the session.
 }
 

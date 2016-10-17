@@ -1,3 +1,7 @@
+## Version 0.1.0.1011
+
+* Fixed some parameters in the session calls in the nrdb API
+
 ## Version 0.1.0.1010
 
 * Fixed problem calculating think time
