@@ -59,7 +59,7 @@ nrdb_query <- function(account_id, api_key, nrql_query, verbose=F) {
 
 #' Get User Session IDs.
 #'
-#' This looks in the given time range for the top sessions based 
+#' This looks in the given time range for the top sessions based
 #' on the number of distinct pages called
 #' during the session.
 #'
@@ -98,16 +98,16 @@ nrdb_session_ids <- function(account_id,
                 ' limit ', limit)
 
     v <- nrdb_query(account_id, api_key,q)
-                    
-    sessions <- data.frame(session=as.character(v[[1]]), 
-                           length=v[[3]], 
+
+    sessions <- data.frame(session=as.character(v[[1]]),
+                           length=v[[3]],
                            uniques=v[[2]],
                            start=as.POSIXct(v[[4]]/1000, origin='1970-01-01'),
                            end=as.POSIXct(v[[5]]/1000, origin='1970-01-01'),
                            stringsAsFactors = F) %>%
         dplyr::arrange(desc(uniques)) %>%
         dplyr::filter(length >= min_length & uniques >= min_unique)
-    
+
     if (!missing(max_length)) {
         sessions <- dplyr::filter(sessions, length <= max_length)
     }
@@ -129,20 +129,20 @@ nrdb_session_ids <- function(account_id,
 #'   and the union of all attributes as columns
 #' @export
 #'
-nrdb_sessions <- function(account_id, 
-                          api_key, 
-                          session_ids, 
-                          app_id=NULL, 
-                          limit=NULL, 
+nrdb_sessions <- function(account_id,
+                          api_key,
+                          session_ids,
+                          app_id=NULL,
+                          limit=NULL,
                           from=24*3,
                           event_type='PageView') {
     if (!is.null(limit) && limit > 1000) warning("A maximum of 1000 pages per session will be captured")
     sessions <- list()
     for(session in session_ids) {
-        pages <- process_session(account_id, api_key, session, 
-                                 limit=limit, 
-                                 event_type=event_type, 
-                                 from=from, 
+        pages <- process_session(account_id, api_key, session,
+                                 limit=limit,
+                                 event_type=event_type,
+                                 from=from,
                                  app_id = app_id)
         if (!plyr::empty(pages)) {
             sessions[[session]] <- pages
@@ -227,8 +227,86 @@ sample_events <- function(account_id,
     df <- plyr::rbind.fill(chunks)
     top(postprocess(df, add_think_time=F), limit)
 }
+#' Retrieve a contguous chunk of raw events.
+#'
+#' This returns a set of events making a best effort to get a contguous chunk.
+#' So if you give a limit of 5000 events it will make successive queries staying
+#' under the limit of 1000 until it has all 5000 events.  You are guaranteed no duplicates
+#' but not guaranteed you won't miss some events if they are sparse or bursty.
+#'
+#' @param account_id your New Relic account ID
+#' @param api_key your New Relic NRDB (Insights) API key
+#' @param app_id the application with the transactions, required unless a where clause is provided
+#' @param attrs an optional comma separated list of attributes to fetch; default is everything (*)
+#' @param where a clause to use to qualify the events fetched; must specify either app_id or where.
+#' @param start_time the timestamp where to start looking.
+#' @param limit the number of events to retrieve
+#' @param event_type the given transaction type; default is 'Transaction'
+#'
+#' @return a dataframe with limit rows and the union of all attributes in all sampled events.
+#' @export
+#'
+get_events <- function(account_id,
+                       api_key,
+                       app_id=NULL,
+                       attrs='*',
+                       where=NULL,
+                       start_time=Sys.time()-lubridate::dminutes(60),
+                       limit=1000,
+                       event_type='Transaction') {
+    if (!is.null(app_id)) {
+        where <- paste0('appId=',app_id)
+    } else if (is.null(where)) {
+        stop("must supply app_id or where clause")
+    }
+
+    est.rate <- nrdb_query(account_id, api_key, paste0('select(count(*))/(60*10) from ',
+                                                       event_type,
+                                                       ' where ', where,
+                                                       ' since ', nrql.timestamp(start_time),
+                                                       ' until ', nrql.timestamp(start_time+dminutes(10))))
+    if (est.rate <= 0.0) {
+        stop('Cannot find enough events in that time range--try changing the start_time')
+    }
+    est.period <- 850.0 / est.rate
+
+    period.start <- as.numeric(start_time, unit='secs')
+    period.end <- period.start + est.period
+
+    chunks <- list()
+    count <- 0
+    now <- as.numeric(Sys.time(), units='sec')
+    while (count < limit && now > period.start) {
+        q <- paste0('select ', attrs,
+                    ' from ', event_type,
+                    ' where ', where,
+                    ' since ', nrql.timestamp(period.start),
+                    ' until ', nrql.timestamp(period.end),
+                    ' limit ', round(min(1.1*(limit-count), 1000)))
+        chunk <- nrdb_query(account_id, api_key, q)
+        message('fetched ',nrow(chunk), ' rows around ', as.POSIXct(period.start, origin='1970-01-01'))
+        count <- count + nrow(chunk)
+        chunks[[length(chunks)+1]] <- chunk
+        est.rate <- (0.9 * est.rate) + (0.1 * nrow(chunk) / as.numeric(period.end - period.start, unit='secs'))
+        est.period <- 850 / est.rate
+        period.start <- period.end
+        period.end <- period.start + est.period
+    }
+    df <- plyr::rbind.fill(chunks)
+    head(df, limit)
+}
 
 ## Unexported helper functions
+
+# If the timestamp is numeric assume a float value in seconds and return an epoch timestamp in milliseconds.
+# Otherwise assume a posix time and return a string timestamp
+nrql.timestamp <- function(ts) {
+    if (is.numeric(ts)) {
+        round(ts * 1000)
+    } else {
+        paste0("'", strftime(ts, '%Y-%m-%d %H:%M:%S', tz='UTC'), "'")
+    }
+}
 
 process_session <- function(account_id,
                             api_key,
@@ -247,12 +325,12 @@ process_session <- function(account_id,
     #     message("Error returned getting session: ", e)
     #     return(NULL)
     # })
-    
+
     if (plyr::empty(events)) {
         message("No events found in session ", session_id)
         return(NULL)
     }
-    
+
     events['type'] <- event_type
     message("Session: ", session_id, " - ", nrow(events), " ", event_type, " events")
     return(postprocess(events))

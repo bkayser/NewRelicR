@@ -1,3 +1,8 @@
+## Version 0.2.0.1000
+
+* Changed license from GPL2 to BSD
+* Added `get_events` method to get contiguous chunks of events for a given criteria.
+
 ## Version 0.1.0.1011
 
 * Fixed some parameters in the session calls in the nrdb API

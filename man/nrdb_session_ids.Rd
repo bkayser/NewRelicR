@@ -29,7 +29,7 @@ if you fetch sessions more recent than that they may still be open and therefore
 a character vector of session ids
 }
 \description{
-This looks in the given time range for the top sessions based 
+This looks in the given time range for the top sessions based
 on the number of distinct pages called
 during the session.
 }
