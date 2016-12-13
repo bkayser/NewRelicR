@@ -264,7 +264,7 @@ get_events <- function(account_id,
                                                        event_type,
                                                        ' where ', where,
                                                        ' since ', nrql.timestamp(start_time),
-                                                       ' until ', nrql.timestamp(start_time+dminutes(10))))
+                                                       ' until ', nrql.timestamp(start_time+lubridate::dminutes(10))))
     if (est.rate <= 0.0) {
         stop('Cannot find enough events in that time range--try changing the start_time')
     }
