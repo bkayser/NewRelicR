@@ -246,7 +246,7 @@ sample_events <- function(account_id,
 #' @return a dataframe with limit rows and the union of all attributes in all sampled events.
 #' @export
 #'
-get_events <- function(account_id,
+nrdb_events <- function(account_id,
                        api_key,
                        app_id=NULL,
                        attrs='*',
@@ -284,10 +284,17 @@ get_events <- function(account_id,
                     ' until ', nrql.timestamp(period.end),
                     ' limit ', round(min(1.1*(limit-count), 1000)))
         chunk <- nrdb_query(account_id, api_key, q)
-        message('fetched ',nrow(chunk), ' rows around ', as.POSIXct(period.start, origin='1970-01-01'))
+        message('fetched ',nrow(chunk), ' rows around ', as.POSIXct(period.start, origin='1970-01-01'),
+                ' using a time range of ', signif(est.period, 3), ' seconds')
         count <- count + nrow(chunk)
         chunks[[length(chunks)+1]] <- chunk
-        est.rate <- (0.9 * est.rate) + (0.1 * nrow(chunk) / as.numeric(period.end - period.start, unit='secs'))
+        if (nrow(chunk) == 1000) {
+            # Use an aggressive backoff if we hit the 1000 event limit
+            est.rate <- 1.5 * est.rate
+        } else {
+            # Else move 20% towards the target rate of 850
+            est.rate <- (0.8 * est.rate) + (0.2 * nrow(chunk) / as.numeric(period.end - period.start, unit='secs'))
+        }
         est.period <- 850 / est.rate
         period.start <- period.end
         period.end <- period.start + est.period

@@ -1,3 +1,7 @@
+## Version 0.2.0.1001
+
+* Renamed `get_events` to `nrdb_events`.
+
 ## Version 0.2.0.1000
 
 * Changed license from GPL2 to BSD
