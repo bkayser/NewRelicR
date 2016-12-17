@@ -2,7 +2,7 @@
 % Please edit documentation in R/nrdb_api.R
 \name{nrdb_events}
 \alias{nrdb_events}
-\title{Retrieve a contguous chunk of raw events.}
+\title{Retrieve a contiguous chunk of raw events.}
 \usage{
 nrdb_events(account_id, api_key, app_id = NULL, attrs = "*", where = NULL,
   start_time = Sys.time() - lubridate::dminutes(60), limit = 1000,
@@ -15,7 +15,7 @@ nrdb_events(account_id, api_key, app_id = NULL, attrs = "*", where = NULL,
 
 \item{app_id}{the application with the transactions, required unless a where clause is provided}
 
-\item{attrs}{an optional comma separated list of attributes to fetch; default is everything (*)}
+\item{attrs}{an optional array of attributes to fetch; default is everything (*)}
 
 \item{where}{a clause to use to qualify the events fetched; must specify either app_id or where.}
 

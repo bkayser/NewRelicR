@@ -43,7 +43,10 @@ nrdb_query <- function(account_id, api_key, nrql_query, verbose=F) {
         names(timeseries) <- stringi::stri_replace(names(timeseries), "", regex='^results\\.')
         dplyr::tbl_df(timeseries)
     } else if (names(result$results[[1]])[1] == 'events') {
-        rows <- lapply(result$results[[1]]$events, as.data.frame, stringsAsFactors=F)
+        rows <- lapply(result$results[[1]]$events, function(event) {
+            # Strip out nulls that appear when you select explicit attributes.
+            as.data.frame(event[!sapply(event,is.null)], stringsAsFactors=F)
+        })
         if (length(rows) > 0) {
             df <- plyr::rbind.fill(rows)
             dplyr::tbl_df(df)
@@ -165,69 +168,18 @@ nrdb_sessions <- function(account_id,
 #'
 #' @return a data frame with two variables, \code{name} and \code{count}
 #' @export
-get_top_transactions <- function(account_id,
-                                 api_key,
-                                 app_id,
-                                 limit=10,
-                                 event_type='Transaction',
-                                 end_time) {
+nrdb_top_transactions <- function(account_id,
+                                  api_key,
+                                  app_id,
+                                  limit=10,
+                                  event_type='Transaction',
+                                  end_time) {
     q <- paste0('select count(*) from ', event_type, ' where appId=', app_id, ' facet name limit ',limit)
     if (!missing(end_time)) q <- paste(q, 'until', as.numeric(end_time))
     nrdb_query(account_id, api_key, paste('select count(*) from ', event_type, ' where appId=', app_id, ' facet name limit ',limit, sep=''))
 }
 
-#' Retrieve a sample of events for an application.
-#'
-#' This returns a sample of events of event_type of the given length (limit) for the given application.
-#' The events are fetched in chunks going backwards from the end_time until there are a total of limit
-#' events.  There may be gaps in between the chunks.  You aren't guaranteed to get the complete set of
-#' contiguous events in a given time range, hence the idea that you are only getting a "sample."
-#'
-#' @param account_id your New Relic account ID
-#' @param api_key your New Relic NRDB (Insights) API key
-#' @param app_id the application with the transactions
-#' @param end_time the upper bound on the time range for getting events
-#' @param limit the number of events to retrieve
-#' @param event_type
-#'
-#' @return a dataframe with limit rows and the union of all attributes in all sampled events.
-#' @export
-#'
-sample_events <- function(account_id,
-                          api_key,
-                          app_id,
-                          end_time=Sys.time(),
-                          limit=100,
-                          event_type='Transaction') {
-    c <- nrdb_query(account_id, api_key, paste('select(count(*)) from',
-                                               event_type,
-                                               'where appId=',
-                                               app_id,
-                                               'since 30 minutes ago'))
-    rate <- c / ( 30 * 60  )
-    batch_duration_ms <- 1000 * (800 / rate)
-
-    begin_time <- end_time - lubridate::seconds(batch_duration)
-    chunks <- list()
-    count <- 0
-    until <- 1000*as.numeric(end_time)
-    while (count < limit) {
-        since <- until - batch_duration_ms
-        q <- paste('select * from',
-                   event_type,
-                   'where appId=', app_id,
-                   'since ',round(since),
-                   'until', round(until),
-                   'limit', round(min(1.1*(limit-count), 1000)))
-        chunk <- nrdb_query(account_id, api_key, q)
-        chunks[[length(chunks)+1]] <- chunk
-        count <- count + nrow(chunk)
-        until <- floor(min(chunk$timestamp)) - 1
-    }
-    df <- plyr::rbind.fill(chunks)
-    top(postprocess(df, add_think_time=F), limit)
-}
-#' Retrieve a contguous chunk of raw events.
+#' Retrieve a contiguous chunk of raw events.
 #'
 #' This returns a set of events making a best effort to get a contguous chunk.
 #' So if you give a limit of 5000 events it will make successive queries staying
@@ -237,7 +189,7 @@ sample_events <- function(account_id,
 #' @param account_id your New Relic account ID
 #' @param api_key your New Relic NRDB (Insights) API key
 #' @param app_id the application with the transactions, required unless a where clause is provided
-#' @param attrs an optional comma separated list of attributes to fetch; default is everything (*)
+#' @param attrs an optional array of attributes to fetch; default is everything (*)
 #' @param where a clause to use to qualify the events fetched; must specify either app_id or where.
 #' @param start_time the timestamp where to start looking.
 #' @param limit the number of events to retrieve
@@ -247,13 +199,13 @@ sample_events <- function(account_id,
 #' @export
 #'
 nrdb_events <- function(account_id,
-                       api_key,
-                       app_id=NULL,
-                       attrs='*',
-                       where=NULL,
-                       start_time=Sys.time()-lubridate::dminutes(60),
-                       limit=1000,
-                       event_type='Transaction') {
+                        api_key,
+                        app_id=NULL,
+                        attrs='*',
+                        where=NULL,
+                        start_time=Sys.time()-lubridate::dminutes(60),
+                        limit=1000,
+                        event_type='Transaction') {
     if (!is.null(app_id)) {
         where <- paste0('appId=',app_id)
     } else if (is.null(where)) {
@@ -277,7 +229,7 @@ nrdb_events <- function(account_id,
     count <- 0
     now <- as.numeric(Sys.time(), units='sec')
     while (count < limit && now > period.start) {
-        q <- paste0('select ', attrs,
+        q <- paste0('select ', paste0(attrs, collapse=','),
                     ' from ', event_type,
                     ' where ', where,
                     ' since ', nrql.timestamp(period.start),
@@ -288,7 +240,9 @@ nrdb_events <- function(account_id,
                 ' using a time range of ', signif(est.period, 3), ' seconds')
         count <- count + nrow(chunk)
         chunks[[length(chunks)+1]] <- chunk
-        if (nrow(chunk) == 1000) {
+        if (plyr::empty(chunk)) {
+            break;
+        } else if (nrow(chunk) == 1000) {
             # Use an aggressive backoff if we hit the 1000 event limit
             est.rate <- 1.5 * est.rate
         } else {
@@ -324,9 +278,9 @@ process_session <- function(account_id,
                             app_id) {
 
     events <- NULL
-#    tryCatch({
-        events <- nrdb_query(account_id, api_key,
-                             event_query("*", event_type, session_id, from, app_id, limit))
+    #    tryCatch({
+    events <- nrdb_query(account_id, api_key,
+                         event_query("*", event_type, session_id, from, app_id, limit))
     # },
     # error=function(e) {
     #     message("Error returned getting session: ", e)

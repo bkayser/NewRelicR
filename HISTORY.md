@@ -1,3 +1,9 @@
+## Version 0.3.0.1000
+
+* Removed `sample_events()` since it didn't do a good job of sampling.
+* Renamed `get_top_transactions` to `nrdb_top_transactions` for consistency.
+* Improved queries when the attributes were specified explicitly
+
 ## Version 0.2.0.1001
 
 * Renamed `get_events` to `nrdb_events`.
