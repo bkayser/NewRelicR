@@ -5,7 +5,7 @@
 \title{Get the user interactions for a list of session Ids, including Page Views and Page Actions.}
 \usage{
 nrdb_sessions(account_id, api_key, session_ids, app_id = NULL, limit = NULL,
-  from = 24 * 3, event_type = "PageView")
+  from = 24 * 3, event_type = "PageView", verbose = F)
 }
 \arguments{
 \item{account_id}{your New Relic account ID}
@@ -19,6 +19,8 @@ more than this number of pages the session is skipped.  Default limit is 750 and
 is 1000.}
 
 \item{from}{the starting point in hours past to search for events}
+
+\item{verbose}{TRUE to print out queries}
 
 \item{page_views_only}{if true (default) will not get PageActions}
 }

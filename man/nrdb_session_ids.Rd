@@ -6,7 +6,7 @@
 \usage{
 nrdb_session_ids(account_id, api_key, app_id, from = 48, to = 1,
   size = 50, min_length = 10, max_length = NULL, min_unique = 1,
-  event_type = "PageView")
+  event_type = "PageView", verbose = T)
 }
 \arguments{
 \item{account_id}{your New Relic account ID}
@@ -24,6 +24,8 @@ if you fetch sessions more recent than that they may still be open and therefore
 \item{size}{the maximum number of session ids to fetch}
 
 \item{max_length}{applies a filter with a maximum session length in pages}
+
+\item{verbose}{TRUE to print out the queries}
 }
 \value{
 a character vector of session ids

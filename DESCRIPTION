@@ -1,7 +1,7 @@
 Package: newrelic
 Type: Package
 Title: Interface for New Relic Application Data
-Version: 0.3.0.1000
+Version: 0.3.0.1001
 Date: 2016-12-13
 Authors@R: person('Bill', 'Kayser', email='bkayser@newrelic.com', role=c('aut', 'cre'))
 Maintainer: Bill Kayer <bkayser@newrelic.com>

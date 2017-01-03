@@ -1,3 +1,7 @@
+## Vesion 0.3.0.1001
+
+* Added verbose option for several calls to see the NRQL.
+
 ## Version 0.3.0.1000
 
 * Removed `sample_events()` since it didn't do a good job of sampling.
