@@ -75,7 +75,8 @@ nrdb_query <- function(account_id, api_key, nrql_query, verbose=F) {
 #' if you fetch sessions more recent than that they may still be open and therefore incomplete.
 #' @param size the maximum number of session ids to fetch
 #' @param max_length applies a filter with a maximum session length in pages
-#'
+#' @param verbose TRUE to print out the queries
+#' 
 #' @return a character vector of session ids
 #' @export
 #'
@@ -88,7 +89,8 @@ nrdb_session_ids <- function(account_id,
                              min_length=10,
                              max_length=NULL,
                              min_unique=1,
-                             event_type='PageView') {
+                             event_type='PageView',
+                             verbose=T) {
 
     limit <- 1000
     name_attr = if (event_type=='PageView') 'name' else 'backendTransactionName'
@@ -100,7 +102,7 @@ nrdb_session_ids <- function(account_id,
                 ' facet session',
                 ' limit ', limit)
 
-    v <- nrdb_query(account_id, api_key,q)
+    v <- nrdb_query(account_id, api_key,q, verbose=verbose)
 
     sessions <- data.frame(session=as.character(v[[1]]),
                            length=v[[3]],
@@ -127,7 +129,7 @@ nrdb_session_ids <- function(account_id,
 #' is 1000.
 #' @param from the starting point in hours past to search for events
 #' @param page_views_only if true (default) will not get PageActions
-#'
+#' @param verbose TRUE to print out queries
 #' @return list of data frames for each session that contain a page view in each row
 #'   and the union of all attributes as columns
 #' @export
@@ -138,7 +140,8 @@ nrdb_sessions <- function(account_id,
                           app_id=NULL,
                           limit=NULL,
                           from=24*3,
-                          event_type='PageView') {
+                          event_type='PageView',
+                          verbose=F) {
     if (!is.null(limit) && limit > 1000) warning("A maximum of 1000 pages per session will be captured")
     sessions <- list()
     for(session in session_ids) {
@@ -146,7 +149,8 @@ nrdb_sessions <- function(account_id,
                                  limit=limit,
                                  event_type=event_type,
                                  from=from,
-                                 app_id = app_id)
+                                 app_id = app_id,
+                                 verbose = verbose)
         if (!plyr::empty(pages)) {
             sessions[[session]] <- pages
         }
@@ -275,17 +279,20 @@ process_session <- function(account_id,
                             limit,
                             event_type,
                             from,
-                            app_id) {
+                            app_id,
+                            verbose) {
 
     events <- NULL
-    #    tryCatch({
-    events <- nrdb_query(account_id, api_key,
-                         event_query("*", event_type, session_id, from, app_id, limit))
-    # },
-    # error=function(e) {
-    #     message("Error returned getting session: ", e)
-    #     return(NULL)
-    # })
+    tryCatch({
+        events <- nrdb_query(account_id, 
+                             api_key,
+                             event_query("*", event_type, session_id, from, app_id, limit),
+                             verbose=verbose)
+    },
+    error=function(e) {
+        warning("Error returned getting session: ", e)
+        return(NULL)
+    })
 
     if (plyr::empty(events)) {
         message("No events found in session ", session_id)
