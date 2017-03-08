@@ -53,8 +53,9 @@ nrdb_query <- function(account_id, api_key, nrql_query, verbose=F) {
         } else {
             return(NULL)
         }
+        
     } else if (!is.null(result$results)) {
-        dplyr::tbl_df(return(unpack(result$results[[1]])))
+        dplyr::tbl_df(return(unlist(result$results)))
     } else {
         stop("Unsupported result type; only facets, timeseries and events supported now.")
     }

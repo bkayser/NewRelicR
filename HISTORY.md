@@ -1,3 +1,7 @@
+## Version 0.3.0.1104
+
+* Fix edge case in nrdb_query when you are getting multiple summary values.
+
 ## Version 0.3.0.1003
 
 * Add verbose option for nrdb_events
