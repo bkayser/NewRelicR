@@ -1,3 +1,7 @@
+## Version 0.3.0.1105
+
+* Improve column labels with multi-column timeseries.
+
 ## Version 0.3.0.1104
 
 * Fix edge case in nrdb_query when you are getting multiple summary values.

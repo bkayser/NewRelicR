@@ -41,6 +41,12 @@ nrdb_query <- function(account_id, api_key, nrql_query, verbose=F) {
         timeseries <- as.data.frame(t(sapply(result$timeSeries, unlist)))
         # Strip leading 'results.' part
         names(timeseries) <- stringi::stri_replace(names(timeseries), "", regex='^results\\.')
+        for (i in seq_along(result$metadata$timeSeries$contents)) {
+            attrs <- result$metadata$timeSeries$contents[[i]]
+            if (!is.null(attrs$attribute)) {
+                names(timeseries)[i] <- paste0(attrs$`function`, '_', attrs$attribute)
+            }
+        }
         dplyr::tbl_df(timeseries)
     } else if (names(result$results[[1]])[1] == 'events') {
         rows <- lapply(result$results[[1]]$events, function(event) {
