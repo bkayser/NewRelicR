@@ -7,6 +7,7 @@
 #' @param api_key your New Relic NRDB (Insights) API key
 #' @param nrql_query the NRQL query to execute
 #' @param verbose indicates status information to be printed out
+#' @param timeout the max time in milliseconds to wait for a response (default: 10,000)
 #'
 #' @return a data frame with the results
 #' @seealso \href{https://docs.newrelic.com/docs/insights/new-relic-insights/adding-querying-data/querying-your-data-remotely}{New Relic NRQL REST API}
@@ -17,7 +18,8 @@
 #' @examples
 #'     nrdb_query(account_id=-1, api_key='your_nrdb_api_license_key_here',
 #'               nrql_query="select count(*) from PageView facet name")
-nrdb_query <- function(account_id, api_key, nrql_query, verbose=F) {
+nrdb_query <- function(account_id, api_key, nrql_query, verbose=F,
+                       timeout=10000) {
     if (verbose) message(paste("Query:", nrql_query))
     if (account_id > 0) {
         url <- paste("https://insights-api.newrelic.com/v1/accounts/",
@@ -25,6 +27,16 @@ nrdb_query <- function(account_id, api_key, nrql_query, verbose=F) {
     } else {
         url <- 'http://mockbin.org/bin/b1db81d0-a699-44ae-87e0-ed9092d1e017'
     }
+    body <- list(account=account_id,
+                 format='json',
+                 query=nrql_query,
+                 restrictions=list(isNewRelicAdmin=T, externalTimeoutMilliseconds=timeout),
+                 jsonVersion=1,
+                 metadata=list(hostUser=Sys.getenv('USER'),
+                               hostname=system('hostname', intern=T),
+                               origin='NewRelicR libray'))
+    headers <- c('X-Dirac-Client-Origin'='NewRelicR library',
+                    "Content-Type"="application/json")
     response <- httr::POST(url,
                            body=list(nrql=nrql_query),
                            encode='json',
@@ -36,14 +48,26 @@ nrdb_query <- function(account_id, api_key, nrql_query, verbose=F) {
         stop("Error in response: ", result$error, "\nQuery: ", nrql_query)
     }
     if (!is.null(result$facets)) {
-        dplyr::tbl_df(dplyr::bind_rows(lapply(result$facets, as.data.frame, stringsAsFactors=F)))
+        facets <- dplyr::bind_rows(lapply(result$facets, as.data.frame, stringsAsFactors=F)) 
+        offset <- length(facets) - length(result$metadata$contents$contents)
+        if (offset >= 0) {
+            for (i in seq_along(result$metadata$contents$contents)) {
+                attrs <- result$metadata$contents$contents[[i]]
+                if (!is.null(attrs$alias)) {
+                    names(facets)[i+offset] <- attrs$alias
+                }
+            }
+        }
+        dplyr::tbl_df(facets)
     } else if (!is.null(result$timeSeries)) {
         timeseries <- as.data.frame(t(sapply(result$timeSeries, unlist)))
         # Strip leading 'results.' part
         names(timeseries) <- stringi::stri_replace(names(timeseries), "", regex='^results\\.')
         for (i in seq_along(result$metadata$timeSeries$contents)) {
             attrs <- result$metadata$timeSeries$contents[[i]]
-            if (!is.null(attrs$attribute)) {
+            if (!is.null(attrs$alias)) {
+                names(timeseries)[i] <- attrs$alias
+            } else if (!is.null(attrs$attribute)) {
                 names(timeseries)[i] <- paste0(attrs$`function`, '_', attrs$attribute)
             }
         }
