@@ -31,4 +31,3 @@ list of data frames for each session that contain a page view in each row
 \description{
 Get the user interactions for a list of session Ids, including Page Views and Page Actions.
 }
-

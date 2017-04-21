@@ -26,4 +26,3 @@ This function returns a list of applications in the given account.
 \seealso{
 \code{\link{newrelic_api}}
 }
-

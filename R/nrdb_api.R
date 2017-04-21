@@ -220,6 +220,8 @@ nrdb_top_transactions <- function(account_id,
 #' So if you give a limit of 5000 events it will make successive queries staying
 #' under the limit of 1000 until it has all 5000 events.  You are guaranteed no duplicates
 #' but not guaranteed you won't miss some events if they are sparse or bursty.
+#' 
+#' There are a lot of transient errors in the NRDB api.  If an error occurs getting a chunk, it will retry 3 times and then give up. 
 #'
 #' @param account_id your New Relic account ID
 #' @param api_key your New Relic NRDB (Insights) API key
@@ -229,6 +231,8 @@ nrdb_top_transactions <- function(account_id,
 #' @param start_time the timestamp where to start looking.
 #' @param limit the number of events to retrieve
 #' @param event_type the given transaction type; default is 'Transaction'
+#' @param verbose for detailed logging
+#' @param timeout value in ms to wait for a response
 #'
 #' @return a dataframe with limit rows and the union of all attributes in all sampled events.
 #' @export
@@ -240,11 +244,30 @@ nrdb_events <- function(account_id,
                         where=NULL,
                         start_time=Sys.time()-lubridate::dminutes(60),
                         limit=1000,
-                        event_type='Transaction') {
+                        event_type='Transaction',
+                        verbose=F,
+                        timeout=1000) {
+    period.start <- as.numeric(start_time, unit='secs')
+    
+    
     if (!is.null(app_id)) {
-        where <- paste0('appId=',app_id)
-    } else if (is.null(where)) {
-        stop("must supply app_id or where clause")
+        where.list <- c(paste0('appId=',app_id))
+    } else {
+        where.list <- vector('character')
+    }
+    if (!is.null(where)) {
+        where.list <- c(where.list, where)
+    }
+    where <- stringi::stri_join(where.list, collapse=' and ' )
+    if (length(where) == 0) stop("provide either an app id or a where clause")
+    
+    if (limit <= 1000) {
+        q <- paste0('select ', paste0(attrs, collapse=','),
+                    ' from ', event_type,
+                    ' where ', where,
+                    ' since ', nrql.timestamp(period.start),
+                    ' limit ', limit)
+        return(nrdb_query(account_id, api_key, q, verbose=verbose, timeout=timeout))
     }
 
     est.rate <- nrdb_query(account_id, api_key, paste0('select(count(*))/(60*10) from ',
@@ -270,7 +293,20 @@ nrdb_events <- function(account_id,
                     ' since ', nrql.timestamp(period.start),
                     ' until ', nrql.timestamp(period.end),
                     ' limit ', round(min(1.1*(limit-count), 1000)))
-        chunk <- nrdb_query(account_id, api_key, q)
+        chunk <- NULL
+        attempts <- 1
+        while (is.null(chunk) && attempts <= 3) {
+            chunk <- tryCatch(nrdb_query(account_id, api_key, q, verbose=verbose),
+                              error=function(msg) {
+                                  warning("Error getting chunk at ", nrql.timestamp(period.start), ", attempt ", attempts,": ",msg)
+                                  attempts <<- attempts + 1
+                                  Sys.sleep(5)
+                                  NULL
+                              })
+        }
+        if (is.null(chunk)) {
+            stop("Unable to get chunk after ", attempts, " attempts")
+        }
         message('fetched ',nrow(chunk), ' rows around ', as.POSIXct(period.start, origin='1970-01-01'),
                 ' using a time range of ', signif(est.period, 3), ' seconds')
         count <- count + nrow(chunk)
@@ -298,7 +334,7 @@ nrdb_events <- function(account_id,
 # Otherwise assume a posix time and return a string timestamp
 nrql.timestamp <- function(ts) {
     if (is.numeric(ts)) {
-        round(ts * 1000)
+        format(ts * 1000, scientific=F, nsmall=0)
     } else {
         paste0("'", strftime(ts, '%Y-%m-%d %H:%M:%S', tz='UTC'), "'")
     }

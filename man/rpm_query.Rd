@@ -65,4 +65,3 @@ due to the limitations on the amount of data that can be retrieved.
 
 \href{https://docs.newrelic.com/docs/apis/rest-api-v2/requirements/api-keys}{How to get API keys}
 }
-

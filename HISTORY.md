@@ -1,3 +1,8 @@
+## Version 0.3.0.1106
+
+* Add timeout parameter to events calls
+* Add retry loop to nrdb_events so its more robust for big queries
+
 ## Version 0.3.0.1105
 
 * Improve column labels with multi-column timeseries.

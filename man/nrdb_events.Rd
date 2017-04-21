@@ -6,7 +6,7 @@
 \usage{
 nrdb_events(account_id, api_key, app_id = NULL, attrs = "*", where = NULL,
   start_time = Sys.time() - lubridate::dminutes(60), limit = 1000,
-  event_type = "Transaction")
+  event_type = "Transaction", verbose = F, timeout = 1000)
 }
 \arguments{
 \item{account_id}{your New Relic account ID}
@@ -24,6 +24,10 @@ nrdb_events(account_id, api_key, app_id = NULL, attrs = "*", where = NULL,
 \item{limit}{the number of events to retrieve}
 
 \item{event_type}{the given transaction type; default is 'Transaction'}
+
+\item{verbose}{for detailed logging}
+
+\item{timeout}{value in ms to wait for a response}
 }
 \value{
 a dataframe with limit rows and the union of all attributes in all sampled events.
@@ -34,4 +38,6 @@ So if you give a limit of 5000 events it will make successive queries staying
 under the limit of 1000 until it has all 5000 events.  You are guaranteed no duplicates
 but not guaranteed you won't miss some events if they are sparse or bursty.
 }
-
+\details{
+There are a lot of transient errors in the NRDB api.  If an error occurs getting a chunk, it will retry 3 times and then give up.
+}

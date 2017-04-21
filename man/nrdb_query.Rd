@@ -4,7 +4,7 @@
 \alias{nrdb_query}
 \title{Execute NRQL queries on NRDB (Insights).}
 \usage{
-nrdb_query(account_id, api_key, nrql_query, verbose = F)
+nrdb_query(account_id, api_key, nrql_query, verbose = F, timeout = 10000)
 }
 \arguments{
 \item{account_id}{your New Relic account ID}
@@ -14,6 +14,8 @@ nrdb_query(account_id, api_key, nrql_query, verbose = F)
 \item{nrql_query}{the NRQL query to execute}
 
 \item{verbose}{indicates status information to be printed out}
+
+\item{timeout}{the max time in milliseconds to wait for a response (default: 10,000)}
 }
 \value{
 a data frame with the results
@@ -33,4 +35,3 @@ and analyze the results in a data frame.
 
 \href{https://docs.newrelic.com/docs/insights/new-relic-insights/adding-querying-data/querying-your-data-remotely#register}{How to get a NRDB API key}
 }
-
