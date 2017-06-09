@@ -48,17 +48,30 @@ nrdb_query <- function(account_id, api_key, nrql_query, verbose=F,
         stop("Error in response: ", result$error, "\nQuery: ", nrql_query)
     }
     if (!is.null(result$facets)) {
-        facets <- dplyr::bind_rows(lapply(result$facets, as.data.frame, stringsAsFactors=F)) 
-        offset <- length(facets) - length(result$metadata$contents$contents)
-        if (offset >= 0) {
-            for (i in seq_along(result$metadata$contents$contents)) {
-                attrs <- result$metadata$contents$contents[[i]]
-                if (!is.null(attrs$alias)) {
-                    names(facets)[i+offset] <- attrs$alias
+        if (result$metadata$contents$contents[[1]][['function']] == 'uniques') {
+            # This block deals with "uniques(...)" queries and may not handle every 
+            # case
+            lapply(result$facets, function(l) {
+                values <- unlist(l$results[[1]]$members)
+                df <- dplyr::bind_cols(data.frame(name=l[[1]], stringsAsFactors = F),
+                                       as.data.frame(matrix(T, ncol=length(values))))
+                names(df)[2:length(df)] <- values
+                df
+            }) %>% dplyr::bind_rows() %>% dplyr::tbl_df()
+        } else {
+            facets <- dplyr::bind_rows(lapply(result$facets, as.data.frame, stringsAsFactors=F)) 
+            offset <- length(facets) - length(result$metadata$contents$contents)
+            if (offset >= 0) {
+                for (i in seq_along(result$metadata$contents$contents)) {
+                    attrs <- result$metadata$contents$contents[[i]]
+                    if (!is.null(attrs$alias)) {
+                        names(facets)[i+offset] <- attrs$alias
+                    }
                 }
             }
+            dplyr::tbl_df(facets)
         }
-        dplyr::tbl_df(facets)
+        
     } else if (!is.null(result$timeSeries)) {
         timeseries <- as.data.frame(t(sapply(result$timeSeries, unlist)))
         # Strip leading 'results.' part

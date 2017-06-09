@@ -1,3 +1,7 @@
+## Version 0.3.0.1107
+
+* Better support for "uniques()" queries in nrdb.
+
 ## Version 0.3.0.1106
 
 * Add timeout parameter to events calls
