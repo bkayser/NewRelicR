@@ -48,55 +48,17 @@ nrdb_query <- function(account_id, api_key, nrql_query, verbose=F,
         stop("Error in response: ", result$error, "\nQuery: ", nrql_query)
     }
     if (!is.null(result$facets)) {
-        if (result$metadata$contents$contents[[1]][['function']] == 'uniques') {
-            # This block deals with "uniques(...)" queries and may not handle every 
-            # case
-            lapply(result$facets, function(l) {
-                values <- unlist(l$results[[1]]$members)
-                df <- dplyr::bind_cols(data.frame(name=l[[1]], stringsAsFactors = F),
-                                       as.data.frame(matrix(T, ncol=length(values))))
-                names(df)[2:length(df)] <- values
-                df
-            }) %>% dplyr::bind_rows() %>% dplyr::tbl_df()
+        if (!is.null(result$facets[[1]]$timeSeries)) {
+            process_faceted_timeseries(result)
+        } else if (!is.null(result$metadata$contents$contents) && result$metadata$contents$contents[[1]][['function']] == 'uniques') {
+            process_faceted_uniques(result)
         } else {
-            facets <- dplyr::bind_rows(lapply(result$facets, as.data.frame, stringsAsFactors=F)) 
-            offset <- length(facets) - length(result$metadata$contents$contents)
-            if (offset >= 0) {
-                for (i in seq_along(result$metadata$contents$contents)) {
-                    attrs <- result$metadata$contents$contents[[i]]
-                    if (!is.null(attrs$alias)) {
-                        names(facets)[i+offset] <- attrs$alias
-                    }
-                }
-            }
-            dplyr::tbl_df(facets)
+            process_facets(result)
         }
-        
     } else if (!is.null(result$timeSeries)) {
-        timeseries <- as.data.frame(t(sapply(result$timeSeries, unlist)))
-        # Strip leading 'results.' part
-        names(timeseries) <- stringi::stri_replace(names(timeseries), "", regex='^results\\.')
-        for (i in seq_along(result$metadata$timeSeries$contents)) {
-            attrs <- result$metadata$timeSeries$contents[[i]]
-            if (!is.null(attrs$alias)) {
-                names(timeseries)[i] <- attrs$alias
-            } else if (!is.null(attrs$attribute)) {
-                names(timeseries)[i] <- paste0(attrs$`function`, '_', attrs$attribute)
-            }
-        }
-        dplyr::tbl_df(timeseries)
+        process_timeseries(result)
     } else if (names(result$results[[1]])[1] == 'events') {
-        rows <- lapply(result$results[[1]]$events, function(event) {
-            # Strip out nulls that appear when you select explicit attributes.
-            as.data.frame(event[!sapply(event,is.null)], stringsAsFactors=F)
-        })
-        if (length(rows) > 0) {
-            df <- plyr::rbind.fill(rows)
-            dplyr::tbl_df(df)
-        } else {
-            return(NULL)
-        }
-        
+        process_events(result)
     } else if (!is.null(result$results)) {
         dplyr::tbl_df(return(unlist(result$results)))
     } else {
@@ -428,4 +390,94 @@ postprocess <- function(events, add_think_time=T) {
         }
     }
     return(v)
+}
+
+# Each of these functions handles a different type of result from the NRDB query.
+# They only cover the most common cases.  I continue to expand them.
+
+process_faceted_uniques <- function(result) {
+    # This block deals with "uniques(...)" queries and may not handle every 
+    # case
+    facets <- lapply(result$facets, function(l) {
+        values <- unlist(l$results[[1]]$members)
+        df <- dplyr::bind_cols(data.frame(name=l[[1]], stringsAsFactors = F),
+                               as.data.frame(matrix(T, ncol=length(values))))
+        names(df)[2:length(df)] <- values
+        df
+    })
+    dplyr::tbl_df(dplyr::bind_rows(facets))
+}
+
+process_facets <- function(result) {
+    facets <- dplyr::bind_rows(lapply(result$facets, as.data.frame, stringsAsFactors=F)) 
+    names(facets) <- c('facet', process_colnames(result$metadata))
+    dplyr::tbl_df(facets)
+}
+
+process_timeseries <- function(result) {
+    timeseries <- as.data.frame(t(sapply(result$timeSeries, unlist)))
+    # Strip leading 'results.' part
+    colnames <- process_colnames(result$metadata)
+    names(timeseries)[1:length(colnames)] <- colnames
+    dplyr::tbl_df(timeseries)
+}
+
+process_colnames <- function(metadata) {
+    colnames <- c()
+    contents <- metadata$contents$contents
+    if (is.null(contents)) contents <- metadata$contents$timeSeries$contents
+    if (is.null(contents)) contents <- metadata$timeSeries$contents
+    for (attr in contents) {
+        if (!is.null(attr$alias)) {
+            colnames[length(colnames)+1] <- attr$alias
+        } else if (!is.null(attr$attribute)) {
+            colnames[length(colnames)+1] <- paste0(attr$`function`, '_', attr$attribute)
+        } else if (!is.null(attr$`function`)) {
+            colnames[length(colnames)+1] <- attr$`function`
+        } else {
+            colnames[length(colnames)+1] <- `UNKNOWN`
+            warning("Unable to identify name of column: ", str(attr))
+        }
+    }
+    colnames
+}
+process_events <- function(result) {
+    rows <- lapply(result$results[[1]]$events, function(event) {
+        # Strip out nulls that appear when you select explicit attributes.
+        as.data.frame(event[!sapply(event,is.null)], stringsAsFactors=F)
+    })
+    if (length(rows) > 0) {
+        df <- plyr::rbind.fill(rows)
+        dplyr::tbl_df(df)
+    } else {
+        return(NULL)
+    }
+}
+
+process_faceted_timeseries <- function(result) {
+    timeseries <- tibble()
+    valnames <- process_colnames(result$metadata)
+    for (facetIndex in seq_along(result$facets)) {
+        facet <- result$facets[[facetIndex]]
+        colnames <- paste(facet$name, valnames, sep='.') 
+        for (timeslice in facet$timeSeries) {
+            begin_time <- as.POSIXct(timeslice$beginTimeSeconds, origin='1970-01-01')
+            end_time <- as.POSIXct(timeslice$endTimeSeconds, origin='1970-01-01')
+            for (valIndex in seq_along(timeslice$results)) {
+                #if (length(timeslice$results) > 1) {
+                    name <- paste0(valnames[valIndex], '.', facet$name)
+                #} else {
+                #    name <- facet$name
+                #}
+                val <- timeslice$results[[valIndex]][[1]]
+                timeseries <- bind_rows(timeseries, 
+                                        data.frame(stringsAsFactors = F,
+                                                   list(begin_time=begin_time,
+                                                        end_time=end_time,
+                                                        name=name,
+                                                        value=val)))
+            }
+        }
+    }
+    dcast(timeseries, begin_time + end_time ~ name, fill=0 )
 }

@@ -1,3 +1,8 @@
+## Version 0.4.0.1000
+
+* Refactored nrdb_query code: WARNING -- may return different names for columns
+* Better support for faceted timeseries
+
 ## Version 0.3.0.1107
 
 * Better support for "uniques()" queries in nrdb.
