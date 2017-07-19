@@ -48,7 +48,9 @@ nrdb_query <- function(account_id, api_key, nrql_query, verbose=F,
         stop("Error in response: ", result$error, "\nQuery: ", nrql_query)
     }
     if (!is.null(result$facets)) {
-        if (!is.null(result$facets[[1]]$timeSeries)) {
+        if (rlang::is_empty(result$facets)) {
+            process_facets(result)
+        } else if (!is.null(result$facets[[1]]$timeSeries)) {
             process_faceted_timeseries(result)
         } else if (!is.null(result$metadata$contents$contents) && result$metadata$contents$contents[[1]][['function']] == 'uniques') {
             process_faceted_uniques(result)
@@ -110,15 +112,18 @@ nrdb_session_ids <- function(account_id,
 
     v <- nrdb_query(account_id, api_key,q, verbose=verbose)
 
-    sessions <- data.frame(session=as.character(v[[1]]),
+    sessions <- 
+        dplyr::filter(
+            dplyr::arrange(
+                data.frame(session=as.character(v[[1]]),
                            length=v[[3]],
                            uniques=v[[2]],
                            start=as.POSIXct(v[[4]]/1000, origin='1970-01-01'),
                            end=as.POSIXct(v[[5]]/1000, origin='1970-01-01'),
-                           stringsAsFactors = F) %>%
-        dplyr::arrange(desc(uniques)) %>%
-        dplyr::filter(length >= min_length & uniques >= min_unique)
-
+                           stringsAsFactors = F),
+                desc(uniques)),
+            length >= min_length & uniques >= min_unique)
+    
     if (!missing(max_length)) {
         sessions <- dplyr::filter(sessions, length <= max_length)
     }
@@ -157,7 +162,7 @@ nrdb_sessions <- function(account_id,
                                  from=from,
                                  app_id = app_id,
                                  verbose = verbose)
-        if (!plyr::empty(pages)) {
+        if (!rlang::is_empty(pages)) {
             sessions[[session]] <- pages
         }
     }
@@ -286,7 +291,7 @@ nrdb_events <- function(account_id,
                 ' using a time range of ', signif(est.period, 3), ' seconds')
         count <- count + nrow(chunk)
         chunks[[length(chunks)+1]] <- chunk
-        if (plyr::empty(chunk)) {
+        if (rlang::is_empty(chunk)) {
             break;
         } else if (nrow(chunk) == 1000) {
             # Use an aggressive backoff if we hit the 1000 event limit
@@ -336,7 +341,7 @@ process_session <- function(account_id,
         return(NULL)
     })
 
-    if (plyr::empty(events)) {
+    if (rlang::is_empty(events)) {
         message("No events found in session ", session_id)
         return(NULL)
     }
@@ -382,7 +387,7 @@ postprocess <- function(events, add_think_time=T) {
     v <- dplyr::arrange(v, timestamp)
     if (add_think_time & nrow(v) > 1) {
         for (i in 1:(nrow(v)-1)) {
-            s <- difftime(v$timestamp[i+1], v$timestamp[i], units='secs') %>% as.numeric
+            s <- as.numeric(difftime(v$timestamp[i+1], v$timestamp[i], units='secs'))
             d <- v$duration[i]
             if (s > d) {
                 v[i,'think'] <- (s - d)
@@ -410,8 +415,12 @@ process_faceted_uniques <- function(result) {
 
 process_facets <- function(result) {
     facets <- dplyr::bind_rows(lapply(result$facets, as.data.frame, stringsAsFactors=F)) 
-    names(facets) <- c('facet', process_colnames(result$metadata))
-    dplyr::tbl_df(facets)
+    if (!rlang::is_empty(facets)) {
+        names(facets) <- c('facet', process_colnames(result$metadata))
+        dplyr::tbl_df(facets)
+    } else {
+        data.frame()
+    }
 }
 
 process_timeseries <- function(result) {
