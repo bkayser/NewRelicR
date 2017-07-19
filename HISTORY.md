@@ -1,3 +1,9 @@
+## Version 0.4.0.1001
+
+* Added rlang library
+* Removed some invalid references to %>% operator
+* Added some more boundary case coverage for nrdb queries
+
 ## Version 0.4.0.1000
 
 * Refactored nrdb_query code: WARNING -- may return different names for columns
