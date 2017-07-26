@@ -424,7 +424,14 @@ process_facets <- function(result) {
 }
 
 process_timeseries <- function(result) {
-    timeseries <- as.data.frame(t(sapply(result$timeSeries, unlist)))
+    # Complicated loop to replace NULL with NA!
+    converted <- sapply(result$timeSeries, function(timeslice) {
+        for (i in seq_along(timeslice$results)) {
+            if (is.null(timeslice$results[[i]][[1]])) timeslice$results[[i]][[1]] <- 0
+        }
+        unlist(timeslice)
+    })
+    timeseries <- as.data.frame(t(converted))
     # Strip leading 'results.' part
     colnames <- process_colnames(result$metadata)
     names(timeseries)[1:length(colnames)] <- colnames

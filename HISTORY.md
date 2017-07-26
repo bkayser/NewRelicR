@@ -1,3 +1,7 @@
+## Version 0.4.0.1002
+
+* Fixed a problem processing percentage() functions.
+
 ## Version 0.4.0.1001
 
 * Added rlang library
