@@ -1,3 +1,7 @@
+## Version 0.4.0.1003
+
+* Better handling of edge case when there is no data
+
 ## Version 0.4.0.1002
 
 * Fixed a problem processing percentage() functions.

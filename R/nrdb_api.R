@@ -112,7 +112,7 @@ nrdb_session_ids <- function(account_id,
 
     v <- nrdb_query(account_id, api_key,q, verbose=verbose)
 
-    sessions <- 
+    sessions <-
         dplyr::filter(
             dplyr::arrange(
                 data.frame(session=as.character(v[[1]]),
@@ -123,7 +123,7 @@ nrdb_session_ids <- function(account_id,
                            stringsAsFactors = F),
                 desc(uniques)),
             length >= min_length & uniques >= min_unique)
-    
+
     if (!missing(max_length)) {
         sessions <- dplyr::filter(sessions, length <= max_length)
     }
@@ -200,8 +200,8 @@ nrdb_top_transactions <- function(account_id,
 #' So if you give a limit of 5000 events it will make successive queries staying
 #' under the limit of 1000 until it has all 5000 events.  You are guaranteed no duplicates
 #' but not guaranteed you won't miss some events if they are sparse or bursty.
-#' 
-#' There are a lot of transient errors in the NRDB api.  If an error occurs getting a chunk, it will retry 3 times and then give up. 
+#'
+#' There are a lot of transient errors in the NRDB api.  If an error occurs getting a chunk, it will retry 3 times and then give up.
 #'
 #' @param account_id your New Relic account ID
 #' @param api_key your New Relic NRDB (Insights) API key
@@ -228,8 +228,8 @@ nrdb_events <- function(account_id,
                         verbose=F,
                         timeout=1000) {
     period.start <- as.numeric(start_time, unit='secs')
-    
-    
+
+
     if (!is.null(app_id)) {
         where.list <- c(paste0('appId=',app_id))
     } else {
@@ -240,7 +240,7 @@ nrdb_events <- function(account_id,
     }
     where <- stringi::stri_join(where.list, collapse=' and ' )
     if (length(where) == 0) stop("provide either an app id or a where clause")
-    
+
     if (limit <= 1000) {
         q <- paste0('select ', paste0(attrs, collapse=','),
                     ' from ', event_type,
@@ -250,7 +250,9 @@ nrdb_events <- function(account_id,
         return(nrdb_query(account_id, api_key, q, verbose=verbose, timeout=timeout))
     }
 
-    est.rate <- nrdb_query(account_id, api_key, paste0('select(count(*))/(60*10) from ',
+    est.rate <- nrdb_query(account_id,
+                           api_key,
+                           paste0('select(count(*))/(60*10) from ',
                                                        event_type,
                                                        ' where ', where,
                                                        ' since ', nrql.timestamp(start_time),
@@ -401,7 +403,7 @@ postprocess <- function(events, add_think_time=T) {
 # They only cover the most common cases.  I continue to expand them.
 
 process_faceted_uniques <- function(result) {
-    # This block deals with "uniques(...)" queries and may not handle every 
+    # This block deals with "uniques(...)" queries and may not handle every
     # case
     facets <- lapply(result$facets, function(l) {
         values <- unlist(l$results[[1]]$members)
@@ -414,12 +416,16 @@ process_faceted_uniques <- function(result) {
 }
 
 process_facets <- function(result) {
-    facets <- dplyr::bind_rows(lapply(result$facets, as.data.frame, stringsAsFactors=F)) 
+    facets <- dplyr::bind_rows(lapply(result$facets, as.data.frame, stringsAsFactors=F))
     if (!rlang::is_empty(facets)) {
         names(facets) <- c('facet', process_colnames(result$metadata))
         dplyr::tbl_df(facets)
-    } else {
-        data.frame()
+    } else if (!is.null(result$totalResult$timeSeries)) {
+        df <- dplyr::bind_rows(lapply(result$totalResult$timeSeries, as.data.frame))
+        df <- mutate(df,  
+                     begin_time = as.POSIXct(beginTimeSeconds, origin='1970-01-01'),
+                     end_time = as.POSIXct(endTimeSeconds, origin='1970-01-01'))
+        select(df, begin_time, end_time)
     }
 }
 
@@ -427,7 +433,10 @@ process_timeseries <- function(result) {
     # Complicated loop to replace NULL with NA!
     converted <- sapply(result$timeSeries, function(timeslice) {
         for (i in seq_along(timeslice$results)) {
-            if (is.null(timeslice$results[[i]][[1]])) timeslice$results[[i]][[1]] <- 0
+            # One result column could contain more than one value for apdex (and maybe others)
+            for (part in seq_along(timeslice$results[[i]])) {
+                if (is.null(timeslice$results[[i]][[part]])) timeslice$results[[i]][[part]] <- 0
+            }
         }
         unlist(timeslice)
     })
@@ -435,7 +444,10 @@ process_timeseries <- function(result) {
     # Strip leading 'results.' part
     colnames <- process_colnames(result$metadata)
     names(timeseries)[1:length(colnames)] <- colnames
-    dplyr::tbl_df(timeseries)
+    tryCatch(dplyr::tbl_df(timeseries),
+             error=function(m) {
+                 stop('problem with the timeseries: ', names(timeseries))
+             })
 }
 
 process_colnames <- function(metadata) {
@@ -444,7 +456,17 @@ process_colnames <- function(metadata) {
     if (is.null(contents)) contents <- metadata$contents$timeSeries$contents
     if (is.null(contents)) contents <- metadata$timeSeries$contents
     for (attr in contents) {
-        if (!is.null(attr$alias)) {
+        if (!is.null(attr$contents) && attr$contents$`function` == 'apdex') {
+            if (is.null(attr$alias))
+                base <- 'apdex'
+            else
+                base <- attr$alias
+            colnames[length(colnames) + 1] <- paste0(base,'_s')
+            colnames[length(colnames) + 1] <- paste0(base,'_t')
+            colnames[length(colnames) + 1] <- paste0(base,'_f')
+            colnames[length(colnames) + 1] <- paste0(base,'_score')
+            colnames[length(colnames) + 1] <- paste0(base,'_count')
+        } else if (!is.null(attr$alias)) {
             colnames[length(colnames)+1] <- attr$alias
         } else if (!is.null(attr$attribute)) {
             colnames[length(colnames)+1] <- paste0(attr$`function`, '_', attr$attribute)
@@ -475,7 +497,7 @@ process_faceted_timeseries <- function(result) {
     valnames <- process_colnames(result$metadata)
     for (facetIndex in seq_along(result$facets)) {
         facet <- result$facets[[facetIndex]]
-        colnames <- paste(facet$name, valnames, sep='.') 
+        colnames <- paste(facet$name, valnames, sep='.')
         for (timeslice in facet$timeSeries) {
             begin_time <- as.POSIXct(timeslice$beginTimeSeconds, origin='1970-01-01')
             end_time <- as.POSIXct(timeslice$endTimeSeconds, origin='1970-01-01')
@@ -486,7 +508,7 @@ process_faceted_timeseries <- function(result) {
                 #    name <- facet$name
                 #}
                 val <- timeslice$results[[valIndex]][[1]]
-                timeseries <- bind_rows(timeseries, 
+                timeseries <- bind_rows(timeseries,
                                         data.frame(stringsAsFactors = F,
                                                    list(begin_time=begin_time,
                                                         end_time=end_time,
