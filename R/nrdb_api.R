@@ -84,7 +84,7 @@ nrdb_query <- function(account_id, api_key, nrql_query, verbose=F,
 #' @param size the maximum number of session ids to fetch
 #' @param max_length applies a filter with a maximum session length in pages
 #' @param verbose TRUE to print out the queries
-#' 
+#'
 #' @return a character vector of session ids
 #' @export
 #'
@@ -229,7 +229,6 @@ nrdb_events <- function(account_id,
                         timeout=1000) {
     period.start <- as.numeric(start_time, unit='secs')
 
-
     if (!is.null(app_id)) {
         where.list <- c(paste0('appId=',app_id))
     } else {
@@ -256,13 +255,13 @@ nrdb_events <- function(account_id,
                                                        event_type,
                                                        ' where ', where,
                                                        ' since ', nrql.timestamp(start_time),
-                                                       ' until ', nrql.timestamp(start_time+lubridate::dminutes(10))))
+                                                       ' until ', nrql.timestamp(start_time+lubridate::dminutes(10))),
+                           verbose=verbose)
     if (est.rate <= 0.0) {
         stop('Cannot find enough events in that time range--try changing the start_time')
     }
     est.period <- 850.0 / est.rate
 
-    period.start <- as.numeric(start_time, unit='secs')
     period.end <- period.start + est.period
 
     chunks <- list()
@@ -333,7 +332,7 @@ process_session <- function(account_id,
 
     events <- NULL
     tryCatch({
-        events <- nrdb_query(account_id, 
+        events <- nrdb_query(account_id,
                              api_key,
                              event_query("*", event_type, session_id, from, app_id, limit),
                              verbose=verbose)
@@ -422,7 +421,7 @@ process_facets <- function(result) {
         dplyr::tbl_df(facets)
     } else if (!is.null(result$totalResult$timeSeries)) {
         df <- dplyr::bind_rows(lapply(result$totalResult$timeSeries, as.data.frame))
-        df <- mutate(df,  
+        df <- mutate(df,
                      begin_time = as.POSIXct(beginTimeSeconds, origin='1970-01-01'),
                      end_time = as.POSIXct(endTimeSeconds, origin='1970-01-01'))
         select(df, begin_time, end_time)
