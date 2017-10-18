@@ -1,3 +1,7 @@
+## Version 0.4.0.1004
+
+* Added sampling_rate and end_time to nrdb_events()
+
 ## Version 0.4.0.1003
 
 * Better handling of edge case when there is no data

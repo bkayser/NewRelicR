@@ -5,8 +5,9 @@
 \title{Retrieve a contiguous chunk of raw events.}
 \usage{
 nrdb_events(account_id, api_key, app_id = NULL, attrs = "*", where = NULL,
-  start_time = Sys.time() - lubridate::dminutes(60), limit = 1000,
-  event_type = "Transaction", verbose = F, timeout = 1000)
+  start_time = Sys.time() - lubridate::dminutes(60), end_time = Sys.time(),
+  limit = 1000, event_type = "Transaction", verbose = F, timeout = 1000,
+  sampling_rate = NULL)
 }
 \arguments{
 \item{account_id}{your New Relic account ID}
@@ -17,9 +18,11 @@ nrdb_events(account_id, api_key, app_id = NULL, attrs = "*", where = NULL,
 
 \item{attrs}{an optional array of attributes to fetch; default is everything (*)}
 
-\item{where}{a clause to use to qualify the events fetched; must specify either app_id or where.}
+\item{where}{a clause to use to qualify the events fetched; must specify either app_id or where}
 
-\item{start_time}{the timestamp where to start looking.}
+\item{start_time}{the timestamp where to start looking}
+
+\item{end_time}{the end bounds of the timerange}
 
 \item{limit}{the number of events to retrieve}
 
@@ -28,6 +31,8 @@ nrdb_events(account_id, api_key, app_id = NULL, attrs = "*", where = NULL,
 \item{verbose}{for detailed logging}
 
 \item{timeout}{value in ms to wait for a response}
+
+\item{sampling_rate}{the rate of events to use, if sampling.  Value between 0 and 1}
 }
 \value{
 a dataframe with limit rows and the union of all attributes in all sampled events.

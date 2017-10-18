@@ -207,12 +207,14 @@ nrdb_top_transactions <- function(account_id,
 #' @param api_key your New Relic NRDB (Insights) API key
 #' @param app_id the application with the transactions, required unless a where clause is provided
 #' @param attrs an optional array of attributes to fetch; default is everything (*)
-#' @param where a clause to use to qualify the events fetched; must specify either app_id or where.
-#' @param start_time the timestamp where to start looking.
+#' @param where a clause to use to qualify the events fetched; must specify either app_id or where
+#' @param start_time the timestamp where to start looking
+#' @param end_time the end bounds of the timerange
 #' @param limit the number of events to retrieve
 #' @param event_type the given transaction type; default is 'Transaction'
 #' @param verbose for detailed logging
 #' @param timeout value in ms to wait for a response
+#' @param sampling_rate the rate of events to use, if sampling.  Value between 0 and 1
 #'
 #' @return a dataframe with limit rows and the union of all attributes in all sampled events.
 #' @export
@@ -223,10 +225,12 @@ nrdb_events <- function(account_id,
                         attrs='*',
                         where=NULL,
                         start_time=Sys.time()-lubridate::dminutes(60),
+                        end_time=Sys.time(),
                         limit=1000,
                         event_type='Transaction',
                         verbose=F,
-                        timeout=1000) {
+                        timeout=1000,
+                        sampling_rate=NULL) {
     period.start <- as.numeric(start_time, unit='secs')
 
     if (!is.null(app_id)) {
@@ -236,6 +240,12 @@ nrdb_events <- function(account_id,
     }
     if (!is.null(where)) {
         where.list <- c(where.list, where)
+    }
+    if (!is.null(end_time)) {
+        where.list <- c(where.list, paste0('timestamp <= ', format(as.numeric(end_time) * 1000)))
+    }
+    if (!is.null(sampling_rate)) {
+        where.list <- c(where.list, paste0('random() < ', format(sampling_rate, scientific = F)))
     }
     where <- stringi::stri_join(where.list, collapse=' and ' )
     if (length(where) == 0) stop("provide either an app id or a where clause")
@@ -256,7 +266,8 @@ nrdb_events <- function(account_id,
                                                        ' where ', where,
                                                        ' since ', nrql.timestamp(start_time),
                                                        ' until ', nrql.timestamp(start_time+lubridate::dminutes(10))),
-                           verbose=verbose)
+                           verbose=verbose,
+                           timeout=timeout)
     if (est.rate <= 0.0) {
         stop('Cannot find enough events in that time range--try changing the start_time')
     }
@@ -277,7 +288,7 @@ nrdb_events <- function(account_id,
         chunk <- NULL
         attempts <- 1
         while (is.null(chunk) && attempts <= 3) {
-            chunk <- tryCatch(nrdb_query(account_id, api_key, q, verbose=verbose),
+            chunk <- tryCatch(nrdb_query(account_id, api_key, q, verbose=verbose, timeout=timeout),
                               error=function(msg) {
                                   warning("Error getting chunk at ", nrql.timestamp(period.start), ", attempt ", attempts,": ",msg)
                                   attempts <<- attempts + 1
