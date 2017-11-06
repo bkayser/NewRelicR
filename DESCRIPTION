@@ -22,4 +22,5 @@ Imports:
     digest,
     data.table,
     stringi,
-    rlang
+    rlang,
+    purrr
