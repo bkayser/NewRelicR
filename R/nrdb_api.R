@@ -432,7 +432,13 @@ process_faceted_uniques <- function(result) {
 }
 
 process_facets <- function(result) {
-    facets <- dplyr::bind_rows(lapply(result$facets, as.data.frame, stringsAsFactors=F))
+    facets <- dplyr::bind_rows(lapply(result$facets, function(facet) {
+        # Flatten
+        cols <- purrr::flatten(purrr::flatten(facet))
+        # Remove nulls
+        cols[sapply(cols, is.null)] <- NA
+        as.data.frame(cols, stringsAsFactors=F)
+    }))
     if (!rlang::is_empty(facets)) {
         names(facets) <- c('facet', process_colnames(result$metadata))
         dplyr::tbl_df(facets)
