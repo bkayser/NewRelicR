@@ -288,7 +288,7 @@ nrdb_events <- function(account_id,
         chunk <- NULL
         errors <- 0
         while (errors < 5) {
-            tryCatch({chunk <- nrdb_query(account_id, api_key, q, verbose=verbose, timeout=timeout, host=host); errors <- 0 },
+            tryCatch({chunk <- nrdb_query(account_id, api_key, q, verbose=verbose, timeout=timeout); errors <- 0 },
                               error=function(msg) {
                                   message("Error getting chunk at ", nrql.timestamp(period.start), ", attempt ", errors,": ",msg)
                                   if (stringi::stri_detect_fixed(msg, 'NRQL Syntax Error')) { 
