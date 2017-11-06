@@ -242,7 +242,7 @@ nrdb_events <- function(account_id,
         where.list <- c(where.list, where)
     }
     if (!is.null(end_time)) {
-        where.list <- c(where.list, paste0('timestamp <= ', format(as.numeric(end_time) * 1000)))
+        where.list <- c(where.list, paste0('timestamp <= ', format(as.numeric(end_time) * 1000, scientific = F)))
     }
     if (!is.null(sampling_rate)) {
         where.list <- c(where.list, paste0('random() < ', format(sampling_rate, scientific = F)))
@@ -286,25 +286,27 @@ nrdb_events <- function(account_id,
                     ' until ', nrql.timestamp(period.end),
                     ' limit ', round(min(1.1*(limit-count), 1000)))
         chunk <- NULL
-        attempts <- 1
-        while (is.null(chunk) && attempts <= 3) {
-            chunk <- tryCatch(nrdb_query(account_id, api_key, q, verbose=verbose, timeout=timeout),
+        errors <- 0
+        while (errors < 5) {
+            tryCatch({chunk <- nrdb_query(account_id, api_key, q, verbose=verbose, timeout=timeout, host=host); errors <- 0 },
                               error=function(msg) {
-                                  warning("Error getting chunk at ", nrql.timestamp(period.start), ", attempt ", attempts,": ",msg)
-                                  attempts <<- attempts + 1
-                                  Sys.sleep(5)
-                                  NULL
+                                  message("Error getting chunk at ", nrql.timestamp(period.start), ", attempt ", errors,": ",msg)
+                                  if (stringi::stri_detect_fixed(msg, 'NRQL Syntax Error')) { 
+                                      errors <<- 5
+                                  } else {
+                                      errors <<- errors + 1
+                                      Sys.sleep(2**errors)
+                                  }
                               })
+           if (errors == 0) break
         }
-        if (is.null(chunk)) {
-            stop("Unable to get chunk after ", attempts, " attempts")
+        if (errors > 0) {
+            warning("Failed to get chunk.  Stopping early.")
+            break
         }
-        message('fetched ',nrow(chunk), ' rows around ', as.POSIXct(period.start, origin='1970-01-01'),
-                ' using a time range of ', signif(est.period, 3), ' seconds')
-        count <- count + nrow(chunk)
-        chunks[[length(chunks)+1]] <- chunk
         if (rlang::is_empty(chunk)) {
-            break;
+            message('no more data in time range after ', as.POSIXct(period.start, origin='1970-01-01'))
+            break
         } else if (nrow(chunk) == 1000) {
             # Use an aggressive backoff if we hit the 1000 event limit
             est.rate <- 1.5 * est.rate
@@ -312,6 +314,10 @@ nrdb_events <- function(account_id,
             # Else move 20% towards the target rate of 850
             est.rate <- (0.8 * est.rate) + (0.2 * nrow(chunk) / as.numeric(period.end - period.start, unit='secs'))
         }
+        message('fetched ',nrow(chunk), ' rows around ', as.POSIXct(period.start, origin='1970-01-01'),
+                ' using a time range of ', signif(est.period, 3), ' seconds')
+        count <- count + nrow(chunk)
+        chunks[[length(chunks)+1]] <- chunk
         est.period <- 850 / est.rate
         period.start <- period.end
         period.end <- period.start + est.period
