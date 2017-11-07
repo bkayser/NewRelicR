@@ -32,6 +32,7 @@ This package was developed by [Bill Kayser](https://github.com/bkayser) and New 
 
 * Fixed processing of facets
 * Improved error handling by adding early stop
+* Fixed misc API problems and errors found by the `check()` routine
 
 ### Version 0.4.0.1004
 
