@@ -23,7 +23,13 @@ if you fetch sessions more recent than that they may still be open and therefore
 
 \item{size}{the maximum number of session ids to fetch}
 
+\item{min_length}{applies a filter with a minimum length of a session by number of pages}
+
 \item{max_length}{applies a filter with a maximum session length in pages}
+
+\item{min_unique}{applies a filter with a minimum number of unique pages in a session to avoid sessions that only have one unique page}
+
+\item{event_type}{to override the PageView event type with another event type}
 
 \item{verbose}{TRUE to print out the queries}
 }

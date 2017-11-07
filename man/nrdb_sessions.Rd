@@ -14,15 +14,17 @@ nrdb_sessions(account_id, api_key, session_ids, app_id = NULL, limit = NULL,
 
 \item{session_ids}{the list of session ids obtained using \code{\link{nrdb_session_ids}}}
 
+\item{app_id}{the id of the app to focus on}
+
 \item{limit}{the limit on the number of PageViews in a session to this number; if there are
 more than this number of pages the session is skipped.  Default limit is 750 and the max limit
 is 1000.}
 
 \item{from}{the starting point in hours past to search for events}
 
-\item{verbose}{TRUE to print out queries}
+\item{event_type}{the type of event if other than 'PageView' such as 'PageAction'}
 
-\item{page_views_only}{if true (default) will not get PageActions}
+\item{verbose}{TRUE to print out queries}
 }
 \value{
 list of data frames for each session that contain a page view in each row

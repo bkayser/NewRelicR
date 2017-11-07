@@ -82,7 +82,10 @@ nrdb_query <- function(account_id, api_key, nrql_query, verbose=F,
 #' @param to number of hours into the past to end the hunt for sessions.  The default is six because
 #' if you fetch sessions more recent than that they may still be open and therefore incomplete.
 #' @param size the maximum number of session ids to fetch
+#' @param min_length applies a filter with a minimum length of a session by number of pages
 #' @param max_length applies a filter with a maximum session length in pages
+#' @param min_unique applies a filter with a minimum number of unique pages in a session to avoid sessions that only have one unique page
+#' @param event_type to override the PageView event type with another event type
 #' @param verbose TRUE to print out the queries
 #'
 #' @return a character vector of session ids
@@ -121,13 +124,13 @@ nrdb_session_ids <- function(account_id,
                            start=as.POSIXct(v[[4]]/1000, origin='1970-01-01'),
                            end=as.POSIXct(v[[5]]/1000, origin='1970-01-01'),
                            stringsAsFactors = F),
-                desc(uniques)),
+                dplyr::desc(uniques)),
             length >= min_length & uniques >= min_unique)
 
     if (!missing(max_length)) {
         sessions <- dplyr::filter(sessions, length <= max_length)
     }
-    return(dplyr::tbl_df(head(sessions, size)))
+    return(dplyr::tbl_df(utils::head(sessions, size)))
 }
 
 #' Get the user interactions for a list of session Ids, including Page Views and Page Actions.
@@ -135,11 +138,12 @@ nrdb_session_ids <- function(account_id,
 #' @param account_id your New Relic account ID
 #' @param api_key your New Relic NRDB (Insights) API key
 #' @param session_ids the list of session ids obtained using \code{\link{nrdb_session_ids}}
+#' @param app_id the id of the app to focus on
 #' @param limit the limit on the number of PageViews in a session to this number; if there are
 #' more than this number of pages the session is skipped.  Default limit is 750 and the max limit
 #' is 1000.
 #' @param from the starting point in hours past to search for events
-#' @param page_views_only if true (default) will not get PageActions
+#' @param event_type the type of event if other than 'PageView' such as 'PageAction'
 #' @param verbose TRUE to print out queries
 #' @return list of data frames for each session that contain a page view in each row
 #'   and the union of all attributes as columns
@@ -180,6 +184,7 @@ nrdb_sessions <- function(account_id,
 #' @param app_id the application with the transactions
 #' @param limit to limit the number of transactions returned
 #' @param event_type the event table to use, either \code{PageView} or (default) \code{Transaction}
+#' @param end_time an optional upper limit on the time to look for transactions
 #'
 #' @return a data frame with two variables, \code{name} and \code{count}
 #' @export
@@ -291,7 +296,7 @@ nrdb_events <- function(account_id,
             tryCatch({chunk <- nrdb_query(account_id, api_key, q, verbose=verbose, timeout=timeout); errors <- 0 },
                               error=function(msg) {
                                   message("Error getting chunk at ", nrql.timestamp(period.start), ", attempt ", errors,": ",msg)
-                                  if (stringi::stri_detect_fixed(msg, 'NRQL Syntax Error')) { 
+                                  if (stringi::stri_detect_fixed(msg, 'NRQL Syntax Error')) {
                                       errors <<- 5
                                   } else {
                                       errors <<- errors + 1
@@ -323,7 +328,7 @@ nrdb_events <- function(account_id,
         period.end <- period.start + est.period
     }
     df <- plyr::rbind.fill(chunks)
-    head(df, limit)
+    utils::head(df, limit)
 }
 
 ## Unexported helper functions
@@ -390,7 +395,7 @@ postprocess <- function(events, add_think_time=T) {
         return(NULL)
     }
     if ('backendTransactionName' %in% names(events)) {
-        events <- rename(events, name=backendTransactionName)
+        events <- dplyr::rename(events, name='backendTransactionName')
     }
     # Strip off the transaction category to save space
     v <- dplyr::mutate(events,
@@ -444,10 +449,10 @@ process_facets <- function(result) {
         dplyr::tbl_df(facets)
     } else if (!is.null(result$totalResult$timeSeries)) {
         df <- dplyr::bind_rows(lapply(result$totalResult$timeSeries, as.data.frame))
-        df <- mutate(df,
-                     begin_time = as.POSIXct(beginTimeSeconds, origin='1970-01-01'),
-                     end_time = as.POSIXct(endTimeSeconds, origin='1970-01-01'))
-        select(df, begin_time, end_time)
+        df <- dplyr::mutate(df,
+                            begin_time = as.POSIXct(beginTimeSeconds, origin='1970-01-01'),
+                            end_time = as.POSIXct(endTimeSeconds, origin='1970-01-01'))
+        dplyr::select(df, begin_time, end_time)
     }
 }
 
@@ -495,8 +500,8 @@ process_colnames <- function(metadata) {
         } else if (!is.null(attr$`function`)) {
             colnames[length(colnames)+1] <- attr$`function`
         } else {
-            colnames[length(colnames)+1] <- `UNKNOWN`
-            warning("Unable to identify name of column: ", str(attr))
+            colnames[length(colnames)+1] <- 'UNKNOWN'
+            warning("Unable to identify name of column: ", utils::str(attr))
         }
     }
     colnames
@@ -515,7 +520,7 @@ process_events <- function(result) {
 }
 
 process_faceted_timeseries <- function(result) {
-    timeseries <- tibble()
+    timeseries <- dplyr::tibble()
     valnames <- process_colnames(result$metadata)
     for (facetIndex in seq_along(result$facets)) {
         facet <- result$facets[[facetIndex]]
@@ -524,20 +529,16 @@ process_faceted_timeseries <- function(result) {
             begin_time <- as.POSIXct(timeslice$beginTimeSeconds, origin='1970-01-01')
             end_time <- as.POSIXct(timeslice$endTimeSeconds, origin='1970-01-01')
             for (valIndex in seq_along(timeslice$results)) {
-                #if (length(timeslice$results) > 1) {
-                    name <- paste0(valnames[valIndex], '.', facet$name)
-                #} else {
-                #    name <- facet$name
-                #}
+                name <- paste0(valnames[valIndex], '.', facet$name)
                 val <- timeslice$results[[valIndex]][[1]]
-                timeseries <- bind_rows(timeseries,
-                                        data.frame(stringsAsFactors = F,
-                                                   list(begin_time=begin_time,
-                                                        end_time=end_time,
-                                                        name=name,
-                                                        value=val)))
+                timeseries <- dplyr::bind_rows(timeseries,
+                                               data.frame(stringsAsFactors = F,
+                                                          list(begin_time=begin_time,
+                                                               end_time=end_time,
+                                                               name=name,
+                                                               value=val)))
             }
         }
     }
-    dcast(timeseries, begin_time + end_time ~ name, fill=0 )
+    reshape2::dcast(timeseries, begin_time + end_time ~ name, fill=0 )
 }

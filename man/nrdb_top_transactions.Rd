@@ -17,6 +17,8 @@ nrdb_top_transactions(account_id, api_key, app_id, limit = 10,
 \item{limit}{to limit the number of transactions returned}
 
 \item{event_type}{the event table to use, either \code{PageView} or (default) \code{Transaction}}
+
+\item{end_time}{an optional upper limit on the time to look for transactions}
 }
 \value{
 a data frame with two variables, \code{name} and \code{count}
