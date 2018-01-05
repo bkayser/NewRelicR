@@ -10,7 +10,7 @@ Load the `NewRelicR` package with the following code:
 
 ```r
 install.packages("devtools")
-devtools::install_github("bkayser/NewRelicR")
+devtools::install_github("newrelic/NewRelicR")
 ```
 
 Refer to the help documentation in the package for details on how to use the methods.
@@ -19,7 +19,7 @@ Refer to the help documentation in the package for details on how to use the met
 ??newrelic
 ```
 
-Please report any bugs or suggestions [here](https://github.com/bkayser/NewRelicR/issues).
+Please report any bugs or suggestions [here](https://github.com/newrelic/NewRelicR/issues).
 
 ## Acknowledgements
 
