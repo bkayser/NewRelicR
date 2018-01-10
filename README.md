@@ -28,6 +28,11 @@ This package was developed by [Bill Kayser](https://github.com/bkayser) and New 
 
 ## History
 
+### Version 0.5.0.1000
+
+* Change the naming of some of the results to be more intelligent, using aliases and attribute names for facets instead of "facet" as well as properly naming the values of non-faceted, non-timeseries results.
+* Support multi-facet queries  
+
 ### Version 0.4.0.1005
 
 * Fixed processing of facets

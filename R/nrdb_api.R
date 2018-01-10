@@ -62,7 +62,7 @@ nrdb_query <- function(account_id, api_key, nrql_query, verbose=F,
     } else if (names(result$results[[1]])[1] == 'events') {
         process_events(result)
     } else if (!is.null(result$results)) {
-        dplyr::tbl_df(return(unlist(result$results)))
+        process_aggregates(result)
     } else {
         stop("Unsupported result type; only facets, timeseries and events supported now.")
     }
@@ -437,15 +437,18 @@ process_faceted_uniques <- function(result) {
 }
 
 process_facets <- function(result) {
+    facet_names <- unlist(result$metadata$facet)
     facets <- dplyr::bind_rows(lapply(result$facets, function(facet) {
         # Flatten
         cols <- purrr::flatten(purrr::flatten(facet))
         # Remove nulls
         cols[sapply(cols, is.null)] <- NA
+        names(cols)[1:length(facet_names)] <- facet_names
         as.data.frame(cols, stringsAsFactors=F)
     }))
     if (!rlang::is_empty(facets)) {
-        names(facets) <- c('facet', process_colnames(result$metadata))
+        names(facets) <- c(facet_names, 
+                           process_colnames(result$metadata))
         dplyr::tbl_df(facets)
     } else if (!is.null(result$totalResult$timeSeries)) {
         df <- dplyr::bind_rows(lapply(result$totalResult$timeSeries, as.data.frame))
@@ -482,6 +485,7 @@ process_colnames <- function(metadata) {
     contents <- metadata$contents$contents
     if (is.null(contents)) contents <- metadata$contents$timeSeries$contents
     if (is.null(contents)) contents <- metadata$timeSeries$contents
+    if (is.null(contents)) contents <- metadata$contents
     for (attr in contents) {
         if (!is.null(attr$contents) && attr$contents$`function` == 'apdex') {
             if (is.null(attr$alias))
@@ -517,6 +521,11 @@ process_events <- function(result) {
     } else {
         return(NULL)
     }
+}
+process_aggregates <-  function(result) {
+    values <- unlist(result$results)
+    names(values) <- process_colnames(result$metadata)
+    return(values)
 }
 
 process_faceted_timeseries <- function(result) {
