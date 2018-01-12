@@ -32,6 +32,7 @@ This package was developed by [Bill Kayser](https://github.com/bkayser) and New 
 
 * Change the naming of some of the results to be more intelligent, using aliases and attribute names for facets instead of "facet" as well as properly naming the values of non-faceted, non-timeseries results.
 * Support multi-facet queries  
+* Export the `nrql.timestamp` utility function
 
 ### Version 0.4.0.1005
 

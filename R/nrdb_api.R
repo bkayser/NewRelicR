@@ -331,7 +331,14 @@ nrdb_events <- function(account_id,
     utils::head(df, limit)
 }
 
-## Unexported helper functions
+#' Generate a formatted, quoted date string suitable for use in SINCE/UNTIL clauses
+#' in NRQL.
+#'
+#' @param ts a datetime value as a POSIXt object or a unix Epoch time in seconds
+#'
+#' @return a character vector with a quoted datetime value
+#' @export
+#'
 
 # If the timestamp is numeric assume a float value in seconds and return an epoch timestamp in milliseconds.
 # Otherwise assume a posix time and return a string timestamp
@@ -342,6 +349,7 @@ nrql.timestamp <- function(ts) {
         paste0("'", strftime(ts, '%Y-%m-%d %H:%M:%S', tz='UTC'), "'")
     }
 }
+## Unexported helper functions
 
 process_session <- function(account_id,
                             api_key,
@@ -447,7 +455,7 @@ process_facets <- function(result) {
         as.data.frame(cols, stringsAsFactors=F)
     }))
     if (!rlang::is_empty(facets)) {
-        names(facets) <- c(facet_names, 
+        names(facets) <- c(facet_names,
                            process_colnames(result$metadata))
         dplyr::tbl_df(facets)
     } else if (!is.null(result$totalResult$timeSeries)) {
