@@ -17,15 +17,15 @@
 #'
 #' @examples
 #'     nrdb_query(account_id=-1, api_key='your_nrdb_api_license_key_here',
-#'               nrql_query="select count(*) from PageView facet name")
-nrdb_query <- function(account_id, api_key, nrql_query, verbose=F,
-                       timeout=10000) {
+#'               nrql_query="SELECT count(*) from PageAction facet name")
+nrdb_query <- function(account_id, api_key='notused', nrql_query, verbose=F,
+                       timeout=1000) {
+
     if (verbose) message(paste("Query:", nrql_query))
     if (account_id > 0) {
-        url <- paste("https://insights-api.newrelic.com/v1/accounts/",
-                     account_id, "/query", sep = '')
+        url <- paste0("http://", host, "/api/1/query")
     } else {
-        url <- 'http://mockbin.org/bin/b1db81d0-a699-44ae-87e0-ed9092d1e017'
+        url <- 'http://mockbin.org/bin/1a422903-e564-4da6-9258-72e1d3213151'
     }
     body <- list(account=account_id,
                  format='json',
@@ -38,35 +38,27 @@ nrdb_query <- function(account_id, api_key, nrql_query, verbose=F,
     headers <- c('X-Dirac-Client-Origin'='NewRelicR library',
                     "Content-Type"="application/json")
     response <- httr::POST(url,
-                           body=list(nrql=nrql_query),
+                           body=body,
                            encode='json',
+#                           httr::verbose(data_in=F, data_out=F, info=F),
+#                           httr::config(timeout=30),
                            httr::accept("application/json"),
-                           httr::add_headers('X-Query-Key'=api_key))
+                           httr::add_headers(headers))
     result <- httr::content(response, type='application/json')
 
     if (!is.null(result$error)) {
         stop("Error in response: ", result$error, "\nQuery: ", nrql_query)
     }
-    if (!is.null(result$facets)) {
-        if (rlang::is_empty(result$facets)) {
-            process_facets(result)
-        } else if (!is.null(result$facets[[1]]$timeSeries)) {
-            process_faceted_timeseries(result)
-        } else if (!is.null(result$metadata$contents$contents) && result$metadata$contents$contents[[1]][['function']] == 'uniques') {
-            process_faceted_uniques(result)
-        } else {
-            process_facets(result)
-        }
-    } else if (!is.null(result$timeSeries)) {
-        process_timeseries(result)
-    } else if (names(result$results[[1]])[1] == 'events') {
-        process_events(result)
-    } else if (!is.null(result$results)) {
-        process_aggregates(result)
+    if (!rlang::is_empty(result$current)) {
+        result$current$metadata <- result$metadata
+        result$previous$metadata <- result$metadata
+        list(current = process_result(result$current),
+             previous = process_result(result$previous))
     } else {
-        stop("Unsupported result type; only facets, timeseries and events supported now.")
+        process_result(result)
     }
 }
+
 
 #' Get User Session IDs.
 #'
@@ -261,18 +253,22 @@ nrdb_events <- function(account_id,
                     ' where ', where,
                     ' since ', nrql.timestamp(period.start),
                     ' limit ', limit)
-        return(nrdb_query(account_id, api_key, q, verbose=verbose, timeout=timeout))
+        df <- nrdb_query(account_id, api_key, q, verbose=verbose, timeout=timeout, host=host)
+        df <- mutate(df, timestamp=as.POSIXct(timestamp/1000, origin='1970-01-01'))
+        return(df)
     }
 
     est.rate <- nrdb_query(account_id,
                            api_key,
                            paste0('select(count(*))/(60*10) from ',
-                                                       event_type,
-                                                       ' where ', where,
-                                                       ' since ', nrql.timestamp(start_time),
-                                                       ' until ', nrql.timestamp(start_time+lubridate::dminutes(10))),
+                                  event_type,
+                                  ' where ', where,
+                                  ' since ', nrql.timestamp(start_time),
+                                  ' until ', nrql.timestamp(start_time+lubridate::dminutes(10))),
                            verbose=verbose,
-                           timeout=timeout)
+                           timeout=timeout,
+                           host=host)
+
     if (est.rate <= 0.0) {
         stop('Cannot find enough events in that time range--try changing the start_time')
     }
@@ -293,7 +289,7 @@ nrdb_events <- function(account_id,
         chunk <- NULL
         errors <- 0
         while (errors < 5) {
-            tryCatch({chunk <- nrdb_query(account_id, api_key, q, verbose=verbose, timeout=timeout); errors <- 0 },
+            tryCatch({chunk <- nrdb_query(account_id, api_key, q, verbose=verbose, timeout=timeout, host=host); errors <- 0 },
                               error=function(msg) {
                                   message("Error getting chunk at ", nrql.timestamp(period.start), ", attempt ", errors,": ",msg)
                                   if (stringi::stri_detect_fixed(msg, 'NRQL Syntax Error')) {
@@ -328,6 +324,7 @@ nrdb_events <- function(account_id,
         period.end <- period.start + est.period
     }
     df <- plyr::rbind.fill(chunks)
+    df <- mutate(df, timestamp=as.POSIXct(timestamp/1000, origin='1970-01-01'))
     utils::head(df, limit)
 }
 
@@ -428,6 +425,34 @@ postprocess <- function(events, add_think_time=T) {
     return(v)
 }
 
+# This handles a generic result of a NRQL query by analyzing whether there
+# are facets, timeseries, events, or aggregate values.
+process_result <- function(result) {
+    if (!is.null(result$facets)) {
+        if (!rlang::is_empty(result$metadata$contents$contents$contents)) {
+            # For some reason, in compare queries, the metadata column info is redundantly nested
+            # an extra level, so this moves it back to where it should be.
+            result$metadata$contents$contents <- result$metadata$contents$contents$contents
+        }
+        if (rlang::is_empty(result$facets)) {
+            process_facets(result)
+        } else if (!is.null(result$facets[[1]]$timeSeries)) {
+            process_faceted_timeseries(result)
+        } else if (!rlang::is_empty(result$metadata$contents$contents) && result$metadata$contents$contents[[1]][['function']] == 'uniques') {
+            process_faceted_uniques(result)
+        } else {
+            process_facets(result)
+        }
+    } else if (!is.null(result$timeSeries)) {
+        process_timeseries(result)
+    } else if (!rlang::is_empty(result$results[[1]]) && names(result$results[[1]])[1] == 'events') {
+        process_events(result)
+    } else if (!is.null(result$results)) {
+        process_aggregates(result)
+    } else {
+        stop("Unsupported result type; only facets, timeseries and events supported now.")
+    }
+}
 # Each of these functions handles a different type of result from the NRDB query.
 # They only cover the most common cases.  I continue to expand them.
 
@@ -445,7 +470,13 @@ process_faceted_uniques <- function(result) {
 }
 
 process_facets <- function(result) {
-    facet_names <- unlist(result$metadata$facet)
+    if (!rlang::is_empty(result$metadata$facet)) {
+        facet_names <- unlist(result$metadata$facet)
+    } else {
+        # For some reason, the facet metadata gets put under "contents" in certain
+        # result sets.
+        facet_names <- unlist(result$metadata$contents$facet)
+    }
     facets <- dplyr::bind_rows(lapply(result$facets, function(facet) {
         # Flatten
         cols <- purrr::flatten(purrr::flatten(facet))

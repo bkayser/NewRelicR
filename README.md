@@ -28,6 +28,13 @@ This package was developed by [Bill Kayser](https://github.com/bkayser) and New 
 
 ## History
 
+### Version 0.6.0.1000
+
+Added support for "compare with" clauses in `nrdb_query`.  This will return a list with
+two elements, `current` and `previous`.  
+
+NOTE: Not all combinations of query types using `COMPARE WITH` have been tested!  
+
 ### Version 0.5.0.1000
 
 * Change the naming of some of the results to be more intelligent, using aliases and attribute names for facets instead of "facet" as well as properly naming the values of non-faceted, non-timeseries results.
