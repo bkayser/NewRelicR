@@ -26,7 +26,7 @@ and analyze the results in a data frame.
 }
 \examples{
     nrdb_query(account_id=-1, api_key='your_nrdb_api_license_key_here',
-              nrql_query="select count(*) from PageView facet name")
+              nrql_query="SELECT count(*) from PageAction facet name")
 }
 \seealso{
 \href{https://docs.newrelic.com/docs/insights/new-relic-insights/adding-querying-data/querying-your-data-remotely}{New Relic NRQL REST API}
