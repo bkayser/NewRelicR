@@ -25,7 +25,6 @@
 #' @param progress_callback is a caller supplied function that takes two arguments: the iteration
 #'     number and the total number of iterations.
 #' @param ... arguments passed on to \code{progress_callback} if provided.
-#' @seealso \code{\link{newrelic_api}}
 #' @seealso \href{https://docs.newrelic.com/docs/apis/rest-api-v2/requirements/new-relic-rest-api-v2-getting-started}{New Relic REST API Documentation}
 #' @seealso \href{https://docs.newrelic.com/docs/apis/rest-api-v2/requirements/api-keys}{How to get API keys}
 #' @return a data table with observations as timeslices and the timeslice start time, metric name, and values in the variables
@@ -138,7 +137,6 @@ rpm_query <- function(account_id,
 #' @param verbose show extra information about the calls
 #' @param host use to proxy requests through an intermediate host you can override the default host
 #'     of \code{api.newrelic.com}.
-#' @seealso \code{\link{newrelic_api}}
 #' @return a data table with observations for each application and variables for the id, name, and throughput
 #' @export
 rpm_applications <- function(account_id,

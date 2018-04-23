@@ -59,8 +59,6 @@ due to the limitations on the amount of data that can be retrieved.
               metrics='HttpDispatcher', values='calls_per_minute')
 }
 \seealso{
-\code{\link{newrelic_api}}
-
 \href{https://docs.newrelic.com/docs/apis/rest-api-v2/requirements/new-relic-rest-api-v2-getting-started}{New Relic REST API Documentation}
 
 \href{https://docs.newrelic.com/docs/apis/rest-api-v2/requirements/api-keys}{How to get API keys}

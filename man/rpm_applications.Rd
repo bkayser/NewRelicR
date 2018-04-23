@@ -23,6 +23,3 @@ a data table with observations for each application and variables for the id, na
 \description{
 This function returns a list of applications in the given account.
 }
-\seealso{
-\code{\link{newrelic_api}}
-}
