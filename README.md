@@ -28,6 +28,10 @@ This package was developed by [Bill Kayser](https://github.com/bkayser) and New 
 
 ## History
 
+### Version 0.6.0.1001
+
+Fix copy/paste error.
+
 ### Version 0.6.0.1000
 
 Added support for "compare with" clauses in `nrdb_query`.  This will return a list with
