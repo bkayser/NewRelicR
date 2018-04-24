@@ -18,12 +18,13 @@
 #' @examples
 #'     nrdb_query(account_id=-1, api_key='your_nrdb_api_license_key_here',
 #'               nrql_query="SELECT count(*) from PageAction facet name")
-nrdb_query <- function(account_id, api_key='notused', nrql_query, verbose=F,
-                       timeout=1000) {
+nrdb_query <- function(account_id, api_key, nrql_query, verbose=F,
+                       timeout=10000) {
 
     if (verbose) message(paste("Query:", nrql_query))
     if (account_id > 0) {
-        url <- paste0("http://", host, "/api/1/query")
+        url <- paste("https://insights-api.newrelic.com/v1/accounts/",
+                     account_id, "/query", sep = '')
     } else {
         url <- 'http://mockbin.org/bin/1a422903-e564-4da6-9258-72e1d3213151'
     }
